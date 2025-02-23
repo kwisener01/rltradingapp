@@ -9,10 +9,10 @@ requests>=2.26.0
 # Visualization
 plotly>=5.3.0
 
-# Reinforcement Learning (Updated gym version)
-gym==0.26.2
-stable-baselines3==1.8.0
-torch==1.13.1
+# Reinforcement Learning
+gym==0.21.0
+stable-baselines3==1.6.2
+torch==1.10.2
 
 # API for Stock Data
 alpha_vantage>=2.3.1
