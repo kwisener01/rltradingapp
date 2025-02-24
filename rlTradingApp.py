@@ -3,8 +3,8 @@ import yfinance as yf
 import pandas as pd
 import openai
 
-# Load OpenAI API Key from secrets.toml
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize OpenAI client
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
 st.title("📊 SPY Trading Advisor with AI Strategy")
@@ -19,17 +19,18 @@ def fetch_spy_data(interval, period):
     spy_data = yf.download(tickers="SPY", interval=interval, period=period)
     return spy_data
 
-# Function to Query OpenAI for Strategy
+# Updated Function to Query OpenAI for Strategy
 def ask_openai(prompt):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-4",  # or gpt-3.5-turbo if you prefer
             messages=[
                 {"role": "system", "content": "You are a trading expert."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            temperature=0.7
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
@@ -46,10 +47,10 @@ if st.sidebar.button("Get SPY Data & AI Strategy"):
         st.write(spy_data.tail(10))
 
         # Prepare data for OpenAI prompt
-        prompt = f"""Given the following SPY market data:
+        prompt = f"""The market is currently closed. Given the following SPY market data:
         {spy_data.tail(10).to_string()}
-        
-        Please suggest a trading strategy based on the trends, including buy/sell signals, risk management, and optimal timeframes for trading.
+
+        Please suggest a trading strategy for the next market open. Consider historical trends, potential support/resistance levels, and risk management strategies.
         """
 
         # Get AI-Generated Strategy
