@@ -7,7 +7,7 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor")
+st.title("📊 AI-Powered Trading Advisor with Data Insights")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -46,31 +46,55 @@ def ask_openai(prompt):
     except Exception as e:
         return f"Error: {e}"
 
+# Function to Calculate Basic Statistics
+def calculate_statistics(df):
+    stats = {
+        "Mean Close": round(df["Close"].mean(), 2),
+        "Median Close": round(df["Close"].median(), 2),
+        "Std Dev Close": round(df["Close"].std(), 2),
+        "Max Close": round(df["Close"].max(), 2),
+        "Min Close": round(df["Close"].min(), 2),
+        "Total Volume": round(df["Volume"].sum(), 2)
+    }
+    return pd.DataFrame(list(stats.items()), columns=["Metric", "Value"])
+
 # Main App Logic
-if st.sidebar.button("Get Data & AI Strategy"):
+if st.sidebar.button("Get Stock Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
         stock_data = fetch_stock_data(selected_stock, interval, period)
 
     if not stock_data.empty:
-        st.subheader(f"📊 {selected_stock} Market Data")
+        # Layout: Two Columns
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.subheader(f"📊 {selected_stock} Market Data")
+            st.dataframe(stock_data.tail(10))
+
+        with col2:
+            st.subheader("📈 Basic Statistics")
+            stats_df = calculate_statistics(stock_data)
+            st.table(stats_df)
+
+        # Line Chart for Close Prices
+        st.subheader("📈 Price Chart")
         st.line_chart(stock_data["Close"])
 
-        st.subheader("📋 Raw Data Preview")
-        st.write(stock_data.tail(10))
+        # AI Analysis Button
+        if st.button("Get AI Trading Strategy"):
+            # Prepare data for OpenAI prompt
+            prompt = f"""The market is currently closed. Given the following {selected_stock} market data:
+            {stock_data.tail(10).to_string()}
 
-        # Prepare data for OpenAI prompt
-        prompt = f"""The market is currently closed. Given the following {selected_stock} market data:
-        {stock_data.tail(10).to_string()}
+            Please suggest a trading strategy for the next market open. Include technical insights, risk management, and ideal entry/exit points.
+            """
 
-        Please suggest a trading strategy for the next market open. Consider historical trends, potential support/resistance levels, and risk management strategies.
-        """
+            # Get AI-Generated Strategy
+            with st.spinner("Generating AI Trading Strategy..."):
+                ai_strategy = ask_openai(prompt)
 
-        # Get AI-Generated Strategy
-        with st.spinner("Generating AI Trading Strategy..."):
-            ai_strategy = ask_openai(prompt)
-
-        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
-        st.write(ai_strategy)
+            st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
+            st.write(ai_strategy)
 
     else:
         st.error("❌ No data found. Please try again later.")
