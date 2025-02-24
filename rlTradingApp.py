@@ -1,14 +1,13 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
 import openai
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor with Autoscaled Chart")
+st.title("📊 AI-Powered Trading Advisor (Default Chart Style)")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -59,42 +58,15 @@ def calculate_statistics(df):
     }
     return pd.DataFrame(list(stats.items()), columns=["Metric", "Value"])
 
-# Function to Create Autoscaled Plotly Chart
-def plot_autoscaled_chart(df, stock_name):
-    fig = go.Figure()
-
-    # Add price trace
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df["Close"],
-        mode='lines', name=f'{stock_name} Close'
-    ))
-
-    # Calculate autoscale range (5% buffer)
-    low = df["Close"].min()
-    high = df["Close"].max()
-    buffer = (high - low) * 0.05  # 5% buffer above and below
-
-    # Set layout with autoscaling
-    fig.update_layout(
-        title=f"{stock_name} Price Chart",
-        xaxis_title="Date",
-        yaxis_title="Price",
-        yaxis=dict(range=[low - buffer, high + buffer]),
-        template="plotly_white"
-    )
-
-    return fig
-
 # Main App Logic
 if st.sidebar.button("Get Stock Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
         stock_data = fetch_stock_data(selected_stock, interval, period)
 
     if not stock_data.empty:
-        # 📈 1. Autoscaled Plotly Line Chart
-        st.subheader("📈 Autoscaled Price Chart")
-        autoscaled_fig = plot_autoscaled_chart(stock_data, selected_stock)
-        st.plotly_chart(autoscaled_fig, use_container_width=True)
+        # 📈 1. Original Streamlit Line Chart (Autoscaled)
+        st.subheader("📈 Price Chart")
+        st.line_chart(stock_data["Close"])
 
         # 📋 2. Raw Data Table
         st.subheader(f"📊 {selected_stock} Market Data")
