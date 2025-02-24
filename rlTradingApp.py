@@ -20,7 +20,7 @@ def fetch_es_futures_data(api_key, interval, output_size):
     url = "https://www.alphavantage.co/query"
     params = {
         "function": "TIME_SERIES_INTRADAY",
-        "symbol": "ES=F",  # ES Futures Symbol
+        "symbol": "SPY=F",  # ES Futures Symbol
         "interval": interval,
         "outputsize": output_size,
         "apikey": api_key
