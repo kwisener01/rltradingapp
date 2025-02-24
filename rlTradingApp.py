@@ -1,52 +1,31 @@
 import streamlit as st
-import requests
+import yfinance as yf
 import pandas as pd
 import openai
 
-# Load API Keys from secrets.toml
-ALPHAVANTAGE_API_KEY = st.secrets["ALPHAVANTAGE_API_KEY"]
+# Load OpenAI API Key from secrets.toml
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Streamlit App Title
-st.title("AI-Powered ES Futures Trading Advisor (Alpha Vantage)")
+st.title("📊 SPY Trading Advisor with AI Strategy")
 
 # Sidebar for User Inputs
-st.sidebar.header("ES Futures Data Input")
-interval = st.sidebar.selectbox("Select Interval", ["1min", "5min", "15min", "30min", "60min"])
-output_size = st.sidebar.selectbox("Select Data Size", ["compact", "full"])
+st.sidebar.header("SPY Data Input")
+interval = st.sidebar.selectbox("Select Interval", ["1m", "5m", "15m", "30m", "1h", "1d"])
+period = st.sidebar.selectbox("Select Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y"])
 
-# Function to Fetch ES Futures Data from Alpha Vantage
-def fetch_es_futures_data(api_key, interval, output_size):
-    url = "https://www.alphavantage.co/query"
-    params = {
-        "function": "TIME_SERIES_INTRADAY",
-        "symbol": "SPY=F",  # ES Futures Symbol
-        "interval": interval,
-        "outputsize": output_size,
-        "apikey": api_key
-    }
-    
-    response = requests.get(url, params=params)
-    data = response.json()
-    
-    time_series_key = f"Time Series ({interval})"
-    if time_series_key in data:
-        df = pd.DataFrame.from_dict(data[time_series_key], orient='index')
-        df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        df.index = pd.to_datetime(df.index)
-        df = df.sort_index()
-        return df
-    else:
-        st.error("Failed to fetch data. Check API key or rate limits.")
-        return pd.DataFrame()
+# Function to Fetch SPY Data from Yahoo Finance
+def fetch_spy_data(interval, period):
+    spy_data = yf.download(tickers="SPY", interval=interval, period=period)
+    return spy_data
 
-# Function to Query OpenAI for Trading Strategy
+# Function to Query OpenAI for Strategy
 def ask_openai(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a futures trading expert."},
+                {"role": "system", "content": "You are a trading expert."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -55,25 +34,30 @@ def ask_openai(prompt):
         return f"Error: {e}"
 
 # Main App Logic
-if st.sidebar.button("Get ES Futures Data"):
-    with st.spinner("Fetching ES Futures data..."):
-        es_data = fetch_es_futures_data(ALPHAVANTAGE_API_KEY, interval, output_size)
+if st.sidebar.button("Get SPY Data & AI Strategy"):
+    with st.spinner("Fetching SPY data..."):
+        spy_data = fetch_spy_data(interval, period)
 
-    if not es_data.empty:
-        st.subheader("📊 ES Futures Market Data")
-        st.line_chart(es_data["Close"])
+    if not spy_data.empty:
+        st.subheader("📊 SPY Market Data")
+        st.line_chart(spy_data["Close"])
 
-        # Prepare Data for OpenAI Analysis
-        prompt = f"""Given the following ES Futures data:
-        {es_data.tail(10).to_string()}
-        Suggest a scalping strategy focused on volatility, momentum, and risk management.
+        st.subheader("📋 Raw Data Preview")
+        st.write(spy_data.tail(10))
+
+        # Prepare data for OpenAI prompt
+        prompt = f"""Given the following SPY market data:
+        {spy_data.tail(10).to_string()}
+        
+        Please suggest a trading strategy based on the trends, including buy/sell signals, risk management, and optimal timeframes for trading.
         """
 
-        # Get AI-Generated Trading Strategy
-        with st.spinner("Analyzing with AI..."):
-            ai_response = ask_openai(prompt)
+        # Get AI-Generated Strategy
+        with st.spinner("Generating AI Trading Strategy..."):
+            ai_strategy = ask_openai(prompt)
 
-        st.subheader("🤖 AI-Generated ES Futures Trading Strategy")
-        st.write(ai_response)
+        st.subheader("🤖 AI-Generated SPY Trading Strategy")
+        st.write(ai_strategy)
+
     else:
         st.error("❌ No data found. Please try again later.")
