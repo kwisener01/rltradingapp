@@ -7,7 +7,7 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor with Data Insights")
+st.title("📊 AI-Powered Trading Advisor with Structured Layout")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -64,23 +64,20 @@ if st.sidebar.button("Get Stock Data"):
         stock_data = fetch_stock_data(selected_stock, interval, period)
 
     if not stock_data.empty:
-        # Layout: Two Columns
-        col1, col2 = st.columns([2, 1])
-
-        with col1:
-            st.subheader(f"📊 {selected_stock} Market Data")
-            st.dataframe(stock_data.tail(10))
-
-        with col2:
-            st.subheader("📈 Basic Statistics")
-            stats_df = calculate_statistics(stock_data)
-            st.table(stats_df)
-
-        # Line Chart for Close Prices
+        # 📈 1. Autoscaled Line Chart
         st.subheader("📈 Price Chart")
         st.line_chart(stock_data["Close"])
 
-        # AI Analysis Button
+        # 📋 2. Raw Data Table
+        st.subheader(f"📊 {selected_stock} Market Data")
+        st.dataframe(stock_data.tail(10), use_container_width=True)
+
+        # 📊 3. Basic Statistics
+        st.subheader("📈 Basic Statistics")
+        stats_df = calculate_statistics(stock_data)
+        st.table(stats_df)
+
+        # 🤖 4. AI Analysis Button
         if st.button("Get AI Trading Strategy"):
             # Prepare data for OpenAI prompt
             prompt = f"""The market is currently closed. Given the following {selected_stock} market data:
