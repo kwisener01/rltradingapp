@@ -7,23 +7,35 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 SPY Trading Advisor with AI Strategy")
+st.title("📊 AI-Powered Trading Advisor")
+
+# List of Top 20 Stocks + SPY and QQQ
+top_stocks = [
+    "SPY", "QQQ",  # Index ETFs
+    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B",
+    "UNH", "V", "JNJ", "WMT", "JPM", "PG", "MA", "HD", "DIS", "BAC", "XOM", "PFE"
+]
 
 # Sidebar for User Inputs
-st.sidebar.header("SPY Data Input")
+st.sidebar.header("Select Stock/ETF and Timeframe")
+
+# Dropdown for Stock Selection
+selected_stock = st.sidebar.selectbox("Select Ticker", top_stocks)
+
+# Timeframe and Period Selection
 interval = st.sidebar.selectbox("Select Interval", ["1m", "5m", "15m", "30m", "1h", "1d"])
 period = st.sidebar.selectbox("Select Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y"])
 
-# Function to Fetch SPY Data from Yahoo Finance
-def fetch_spy_data(interval, period):
-    spy_data = yf.download(tickers="SPY", interval=interval, period=period)
-    return spy_data
+# Function to Fetch Stock Data from Yahoo Finance
+def fetch_stock_data(ticker, interval, period):
+    stock_data = yf.download(tickers=ticker, interval=interval, period=period)
+    return stock_data
 
-# Updated Function to Query OpenAI for Strategy
+# Function to Query OpenAI for Strategy
 def ask_openai(prompt):
     try:
         response = client.chat.completions.create(
-            model="gpt-4",  # or gpt-3.5-turbo if you prefer
+            model="gpt-4",  # Use gpt-3.5-turbo if preferred
             messages=[
                 {"role": "system", "content": "You are a trading expert."},
                 {"role": "user", "content": prompt}
@@ -35,20 +47,20 @@ def ask_openai(prompt):
         return f"Error: {e}"
 
 # Main App Logic
-if st.sidebar.button("Get SPY Data & AI Strategy"):
-    with st.spinner("Fetching SPY data..."):
-        spy_data = fetch_spy_data(interval, period)
+if st.sidebar.button("Get Data & AI Strategy"):
+    with st.spinner(f"Fetching {selected_stock} data..."):
+        stock_data = fetch_stock_data(selected_stock, interval, period)
 
-    if not spy_data.empty:
-        st.subheader("📊 SPY Market Data")
-        st.line_chart(spy_data["Close"])
+    if not stock_data.empty:
+        st.subheader(f"📊 {selected_stock} Market Data")
+        st.line_chart(stock_data["Close"])
 
         st.subheader("📋 Raw Data Preview")
-        st.write(spy_data.tail(10))
+        st.write(stock_data.tail(10))
 
         # Prepare data for OpenAI prompt
-        prompt = f"""The market is currently closed. Given the following SPY market data:
-        {spy_data.tail(10).to_string()}
+        prompt = f"""The market is currently closed. Given the following {selected_stock} market data:
+        {stock_data.tail(10).to_string()}
 
         Please suggest a trading strategy for the next market open. Consider historical trends, potential support/resistance levels, and risk management strategies.
         """
@@ -57,7 +69,7 @@ if st.sidebar.button("Get SPY Data & AI Strategy"):
         with st.spinner("Generating AI Trading Strategy..."):
             ai_strategy = ask_openai(prompt)
 
-        st.subheader("🤖 AI-Generated SPY Trading Strategy")
+        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
         st.write(ai_strategy)
 
     else:
