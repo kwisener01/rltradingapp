@@ -7,7 +7,7 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor (Buttons Reorganized)")
+st.title("📊 AI-Powered Trading Advisor (Real-Time Strategies)")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -35,31 +35,17 @@ def fetch_stock_data(ticker, interval, period):
     stock_data = yf.download(tickers=ticker, interval=interval, period=period)
     return stock_data
 
-# Enhanced OpenAI Call with Error Handling
+# Function to Query OpenAI for Strategy
 def ask_openai(prompt):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a trading expert."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-        # Log the full response for debugging
-        st.write("### 🔄 Raw OpenAI Response:", response)
-
-        if response.choices and len(response.choices) > 0:
-            return response.choices[0].message.content.strip()
-        else:
-            return "⚠️ No strategy generated. Check API response."
-
-    except openai.RateLimitError:
-        return "🚫 Rate limit exceeded. Please try again later."
-    except openai.AuthenticationError:
-        return "🚫 Invalid API Key. Please verify your credentials."
-    except Exception as e:
-        return f"❌ An unexpected error occurred: {e}"
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a trading expert."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
 
 # Function to Calculate Statistics
 def calculate_statistics(df):
@@ -72,7 +58,7 @@ def calculate_statistics(df):
         "Total Volume": round(df["Volume"].sum(), 2)
     }
     stats_df = pd.DataFrame(list(stats.items()), columns=["Metric", "Value"])
-    stats_df["Value"] = stats_df["Value"].astype(str)  # Ensure Arrow compatibility
+    stats_df["Value"] = stats_df["Value"].astype(str)
     return stats_df
 
 # 📊 BUTTON 1: Get Stock Data
@@ -95,17 +81,17 @@ if st.button("Get Stock Data"):
             st.subheader("📈 Basic Statistics")
             stats_df = calculate_statistics(stock_data)
             st.table(stats_df)
-
         else:
             st.error("❌ No data found. Please try again later.")
 
-# 🤖 BUTTON 2: Get AI Trading Strategy (Now directly below)
+# 🤖 BUTTON 2: Get AI Trading Strategy
 if st.button("Get AI Trading Strategy"):
     if st.session_state['stock_data'] is not None:
         prompt = f"""Given the following {selected_stock} market data:
         {st.session_state['stock_data'].tail(10).to_string()}
 
-        Please suggest a trading strategy for the next market open. Include technical insights, risk management, and ideal entry/exit points.
+        Please provide a trading strategy suitable for both intraday trading during market hours and swing trading for after hours.
+        Include technical insights, risk management strategies, and optimal entry/exit points based on the current market trends.
         """
 
         with st.spinner("Generating AI Trading Strategy..."):
