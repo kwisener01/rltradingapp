@@ -7,7 +7,7 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor (Fixed Serialization Issue)")
+st.title("📊 AI-Powered Trading Advisor (AI Response Fix)")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -28,7 +28,7 @@ def fetch_stock_data(ticker, interval, period):
     stock_data = yf.download(tickers=ticker, interval=interval, period=period)
     return stock_data
 
-# Function to Query OpenAI for Strategy
+# Function to Query OpenAI for Strategy (With Debugging)
 def ask_openai(prompt):
     try:
         response = client.chat.completions.create(
@@ -39,9 +39,16 @@ def ask_openai(prompt):
             ],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+        # Log the raw response for debugging
+        st.write("**Raw OpenAI Response:**", response)
+
+        # Extract content safely
+        if response.choices and len(response.choices) > 0:
+            return response.choices[0].message.content.strip()
+        else:
+            return "⚠️ No strategy generated. Check API response."
     except Exception as e:
-        return f"Error: {e}"
+        return f"❌ OpenAI API Error: {e}"
 
 # Function to Calculate Statistics
 def calculate_statistics(df):
@@ -53,9 +60,8 @@ def calculate_statistics(df):
         "Min Close": round(df["Close"].min(), 2),
         "Total Volume": round(df["Volume"].sum(), 2)
     }
-    # Convert to DataFrame and ensure all values are strings for Arrow compatibility
     stats_df = pd.DataFrame(list(stats.items()), columns=["Metric", "Value"])
-    stats_df["Value"] = stats_df["Value"].astype(str)  # Ensuring consistent data type
+    stats_df["Value"] = stats_df["Value"].astype(str)  # Ensure Arrow compatibility
     return stats_df
 
 # Main App Logic
@@ -72,10 +78,10 @@ if st.sidebar.button("Get Stock Data"):
         st.subheader(f"📊 {selected_stock} Market Data")
         st.dataframe(stock_data.tail(10), use_container_width=True)
 
-        # 📊 Display Basic Statistics (Fixed Serialization)
+        # 📊 Display Basic Statistics
         st.subheader("📈 Basic Statistics")
         stats_df = calculate_statistics(stock_data)
-        st.table(stats_df)  # Display after type conversion
+        st.table(stats_df)
 
         # 🤖 AI Analysis Button
         if st.button("Get AI Trading Strategy"):
@@ -88,6 +94,7 @@ if st.sidebar.button("Get Stock Data"):
             with st.spinner("Generating AI Trading Strategy..."):
                 ai_strategy = ask_openai(prompt)
 
+            # Show AI-Generated Strategy
             st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
             st.write(ai_strategy)
 
