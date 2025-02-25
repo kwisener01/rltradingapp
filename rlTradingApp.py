@@ -7,7 +7,7 @@ import openai
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor (AI Response Fix)")
+st.title("📊 AI-Powered Trading Advisor (Enhanced Debugging)")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = [
@@ -28,7 +28,7 @@ def fetch_stock_data(ticker, interval, period):
     stock_data = yf.download(tickers=ticker, interval=interval, period=period)
     return stock_data
 
-# Function to Query OpenAI for Strategy (With Debugging)
+# Enhanced OpenAI Call with Error Handling
 def ask_openai(prompt):
     try:
         response = client.chat.completions.create(
@@ -39,16 +39,20 @@ def ask_openai(prompt):
             ],
             temperature=0.7
         )
-        # Log the raw response for debugging
-        st.write("**Raw OpenAI Response:**", response)
+        # Show full response for debugging
+        st.write("### 🔄 Raw OpenAI Response:", response)
 
-        # Extract content safely
         if response.choices and len(response.choices) > 0:
             return response.choices[0].message.content.strip()
         else:
             return "⚠️ No strategy generated. Check API response."
+
+    except openai.RateLimitError:
+        return "🚫 Rate limit exceeded. Please try again later."
+    except openai.AuthenticationError:
+        return "🚫 Invalid API Key. Please verify your credentials."
     except Exception as e:
-        return f"❌ OpenAI API Error: {e}"
+        return f"❌ An unexpected error occurred: {e}"
 
 # Function to Calculate Statistics
 def calculate_statistics(df):
