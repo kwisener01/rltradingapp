@@ -1,30 +1,24 @@
 import streamlit as st
 import requests
-import openai
+import pandas as pd
 import datetime
+import time
 
 # Load Finnhub API Key
 FINNHUB_API_KEY = st.secrets["FINNHUB"]["API_KEY"]
 
-# Initialize OpenAI client
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor (Real-Time)")
+st.title("📊 AI-Powered Trading Advisor (Real-Time & Historical)")
 
 # List of Top 20 Stocks + SPY and QQQ
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B",
               "UNH", "V", "JNJ", "WMT", "JPM", "PG", "MA", "HD", "DIS", "BAC", "XOM", "PFE"]
 
 # Sidebar for User Inputs
-st.sidebar.header("Select Stock/ETF")
+st.sidebar.header("Select Stock/ETF & Timeframe")
 selected_stock = st.sidebar.selectbox("Select Ticker", top_stocks)
-
-# Session state for caching
-if 'stock_data' not in st.session_state:
-    st.session_state['stock_data'] = None
-if 'ai_strategy' not in st.session_state:
-    st.session_state['ai_strategy'] = None
+interval = st.sidebar.selectbox("Select Interval", ["1", "5", "15", "30", "60", "D", "W", "M"], index=4)  # Finnhub uses 1, 5, 15, 30, 60, D, W, M
+days = st.sidebar.slider("Select Number of Days for History", 1, 30, 7)
 
 # Function to Fetch Real-Time Data from Finnhub
 def fetch_real_time_price(ticker):
@@ -33,9 +27,6 @@ def fetch_real_time_price(ticker):
     data = response.json()
 
     if "c" in data and data["c"] != 0:
-        # Convert Unix timestamp to readable time
-        timestamp = datetime.datetime.fromtimestamp(data["t"]).strftime('%Y-%m-%d %H:%M:%S')
-
         return {
             "Symbol": ticker,
             "Latest Price": f"${data['c']:.2f}",
@@ -45,29 +36,55 @@ def fetch_real_time_price(ticker):
             "Low Price": f"${data['l']:.2f}",
             "Change": f"${data['d']:.2f}",
             "Change %": f"{data['dp']:.2f}%",
-            "Timestamp": timestamp
+            "Timestamp": datetime.datetime.fromtimestamp(data["t"]).strftime('%Y-%m-%d %H:%M:%S')
         }
     else:
         return None
 
-# 📊 BUTTON 1: Get Real-Time Stock Data
-if st.button("Get Real-Time Price"):
-    with st.spinner(f"Fetching real-time price for {selected_stock}..."):
-        stock_data = fetch_real_time_price(selected_stock)
-        if stock_data is not None:
-            st.session_state['stock_data'] = stock_data
-            st.success(f"Real-time data for {selected_stock} fetched successfully!")
+# Function to Fetch Historical Data from Finnhub
+def fetch_historical_data(ticker, interval, days):
+    end_time = int(time.time())  # Current time in Unix timestamp
+    start_time = end_time - (days * 24 * 60 * 60)  # Subtract number of days
 
-            # 📈 Display Stock Information
+    url = f"https://finnhub.io/api/v1/stock/candle?symbol={ticker}&resolution={interval}&from={start_time}&to={end_time}&token={FINNHUB_API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+
+    if "s" in data and data["s"] == "ok":
+        df = pd.DataFrame({
+            "Timestamp": [datetime.datetime.fromtimestamp(ts) for ts in data["t"]],
+            "Open": data["o"],
+            "High": data["h"],
+            "Low": data["l"],
+            "Close": data["c"],
+            "Volume": data["v"]
+        })
+        return df
+    else:
+        return None
+
+# 📊 BUTTON 1: Get Real-Time & Historical Stock Data
+if st.button("Get Stock Data"):
+    with st.spinner(f"Fetching real-time and historical data for {selected_stock}..."):
+        stock_data = fetch_real_time_price(selected_stock)
+        historical_data = fetch_historical_data(selected_stock, interval, days)
+
+        if stock_data is not None:
             st.subheader(f"📊 {selected_stock} Market Data (Live)")
             st.write(stock_data)
+
+        if historical_data is not None:
+            st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
+            st.line_chart(historical_data.set_index("Timestamp")["Close"])
+            st.subheader("📋 Historical Data (Last 10 Entries)")
+            st.dataframe(historical_data.tail(10))
         else:
-            st.error("❌ No real-time data found. Please try again later.")
+            st.error("❌ No historical data found. Try a different time period.")
 
 # 🤖 BUTTON 2: Get AI Trading Strategy
 if st.button("Get AI Trading Strategy"):
-    if st.session_state['stock_data'] is not None:
-        prompt = f"""Given the following real-time data for {selected_stock}:
+    if st.session_state.get('stock_data') is not None:
+        prompt = f"""Given the following real-time and historical data for {selected_stock}:
 
         - Latest Price: {st.session_state['stock_data']['Latest Price']}
         - Previous Close: {st.session_state['stock_data']['Previous Close']}
@@ -75,20 +92,21 @@ if st.button("Get AI Trading Strategy"):
         - High Price: {st.session_state['stock_data']['High Price']}
         - Low Price: {st.session_state['stock_data']['Low Price']}
         - Change: {st.session_state['stock_data']['Change']} ({st.session_state['stock_data']['Change %']})
-        - Timestamp: {st.session_state['stock_data']['Timestamp']}
 
-        Please provide an **intraday trading strategy** based on these conditions:
-        - If price is above previous close, suggest a bullish strategy.
-        - If price is below previous close, suggest a bearish strategy.
-        - Identify **support and resistance levels**.
-        - Include **entry points, stop-loss, and profit targets**.
-        - Consider **volume trends & institutional buying/selling patterns**.
+        **Last {days} days of price data:**
+        {st.session_state['historical_data'].tail(10).to_string(index=False)}
+
+        Provide an **intraday and swing trading strategy** based on:
+        - Trend analysis (bullish or bearish)
+        - Support & resistance levels
+        - Institutional buying activity
+        - Entry & exit signals with stop-loss targets
 
         Format the response clearly with actionable insights.
         """
 
         with st.spinner("Generating AI Trading Strategy..."):
-            ai_strategy = client.chat.completions.create(
+            ai_strategy = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a trading expert providing real-time analysis."},
@@ -96,10 +114,7 @@ if st.button("Get AI Trading Strategy"):
                 ],
                 temperature=0.7
             )
-            st.session_state['ai_strategy'] = ai_strategy.choices[0].message.content.strip()
-
-        # Show AI-Generated Strategy
-        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
-        st.write(st.session_state['ai_strategy'])
+            st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
+            st.write(ai_strategy.choices[0].message.content.strip())
     else:
-        st.error("❗ Please fetch real-time stock data first before requesting AI analysis.")
+        st.error("❗ Please fetch stock data first before requesting AI analysis.")
