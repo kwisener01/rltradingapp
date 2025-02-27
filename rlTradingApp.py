@@ -17,7 +17,11 @@ top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TS
 # Sidebar for User Inputs
 st.sidebar.header("Select Stock/ETF & Timeframe")
 selected_stock = st.sidebar.selectbox("Select Ticker", top_stocks)
-interval = st.sidebar.selectbox("Select Interval", ["1", "5", "15", "30", "60", "D", "W", "M"], index=4)  # Finnhub uses 1, 5, 15, 30, 60, D, W, M
+interval = st.sidebar.selectbox(
+    "Select Interval", 
+    ["D", "W", "M"],  # Removed intraday options since free plan doesn't support them
+    index=0
+)
 days = st.sidebar.slider("Select Number of Days for History", 1, 30, 7)
 
 # Function to Fetch Historical Data from Finnhub
