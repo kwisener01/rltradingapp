@@ -113,8 +113,8 @@ if st.button("Get Historical Data"):
     if historical_data is not None and not historical_data.empty:
         st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
         st.line_chart(historical_data.set_index(historical_data.columns[0])["Close"])
-        st.subheader("📋 Historical Data (Last 50 Entries)")
-        st.dataframe(historical_data.tail(50))  # Show last 50 entries for better insights
+        st.subheader("📋 Historical Data (Last 150 Entries)")
+        st.dataframe(historical_data.tail(150))  # Show last 50 entries for better insights
 
         # Perform Bayesian Forecasting
         bayesian_results = bayesian_forecast(historical_data)
