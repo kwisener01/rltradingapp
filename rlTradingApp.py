@@ -34,6 +34,11 @@ def fetch_historical_data_yfinance(ticker, interval, days):
         historical_data = stock.history(period=f"{days}d", interval=interval)
         if not historical_data.empty:
             historical_data.reset_index(inplace=True)
+
+            # Standardizing Date Column
+            if "Date" not in historical_data.columns:
+                historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
+
             return historical_data
     except Exception as e:
         st.error(f"❌ Yahoo Finance Error: {e}")
