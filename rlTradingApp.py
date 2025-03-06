@@ -6,6 +6,7 @@ import time
 import datetime
 import openai
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.stats import norm
 
 # Load API Keys from Streamlit Secrets
@@ -60,7 +61,18 @@ def bayesian_forecast(df):
     up_prob = norm.cdf(0, loc=posterior_mean, scale=posterior_std)
     down_prob = 1 - up_prob
 
-    return {"posterior_mean": posterior_mean, "posterior_std": posterior_std, "up_prob": up_prob, "down_prob": down_prob}
+    # Forecast next closing price based on expected return
+    last_close = df["Close"].iloc[-1]
+    predicted_price = last_close * (1 + posterior_mean)  # Bayesian forecasted next price
+
+    return {
+        "posterior_mean": posterior_mean,
+        "posterior_std": posterior_std,
+        "up_prob": up_prob,
+        "down_prob": down_prob,
+        "predicted_price": predicted_price,
+        "last_close": last_close
+    }
 
 # Function to Generate AI Trading Strategy with Bayesian Forecasting
 def generate_ai_strategy(df, ticker, bayesian_results):
@@ -72,6 +84,7 @@ def generate_ai_strategy(df, ticker, bayesian_results):
     # Bayesian Forecasting Results
     up_prob = round(bayesian_results["up_prob"] * 100, 2)
     down_prob = round(bayesian_results["down_prob"] * 100, 2)
+    predicted_price = round(bayesian_results["predicted_price"], 2)
 
     prompt = f"""
     You are an AI trading expert analyzing {ticker} stock using the last {len(df)} historical data points.
@@ -84,6 +97,7 @@ def generate_ai_strategy(df, ticker, bayesian_results):
     - **Probability of price decrease:** {down_prob}%
     - **Expected return (posterior mean):** {bayesian_results['posterior_mean']}
     - **Market volatility (posterior std dev):** {bayesian_results['posterior_std']}
+    - **Predicted next closing price:** ${predicted_price}
 
     Provide a **detailed technical strategy** including:
     - **Current market trend (bullish, bearish, sideways)**
@@ -112,19 +126,28 @@ if st.button("Get Historical Data"):
 
     if historical_data is not None and not historical_data.empty:
         st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
-        st.line_chart(historical_data.set_index(historical_data.columns[0])["Close"])
-        st.subheader("📋 Historical Data (Last 150 Entries)")
-        st.dataframe(historical_data.tail(150))  # Show last 50 entries for better insights
-
+        
         # Perform Bayesian Forecasting
         bayesian_results = bayesian_forecast(historical_data)
 
         if bayesian_results:
+            # Plot the historical data & prediction
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(historical_data["Date"], historical_data["Close"], label="Historical Close Price", color="blue")
+            ax.scatter(historical_data["Date"].iloc[-1], bayesian_results["predicted_price"], color="red", label="Predicted Next Price", zorder=3)
+            ax.legend()
+            ax.set_title(f"{selected_stock} Price Chart & Bayesian Forecast")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Price")
+            st.pyplot(fig)
+
+            st.subheader("📋 Historical Data (Last 150 Entries)")
+            st.dataframe(historical_data.tail(150))  # Show last 150 entries for better insights
+
             st.subheader("📊 Bayesian Forecasting Results")
             st.write(f"🔹 **Probability of Price Increase:** {round(bayesian_results['up_prob'] * 100, 2)}%")
             st.write(f"🔹 **Probability of Price Decrease:** {round(bayesian_results['down_prob'] * 100, 2)}%")
-            st.write(f"🔹 **Expected Return (Posterior Mean):** {bayesian_results['posterior_mean']:.5f}")
-            st.write(f"🔹 **Market Volatility (Posterior Std Dev):** {bayesian_results['posterior_std']:.5f}")
+            st.write(f"🔹 **Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
 
             # Store data for AI analysis
             st.session_state["historical_data"] = historical_data
