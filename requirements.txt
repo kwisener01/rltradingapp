@@ -5,4 +5,4 @@ requests>=2.31.0
 yfinance
 plotly
 scipy
-#python-dotenv>=1.0.0  # (optional, for managing .env files if needed)
+matplotlib
