@@ -44,7 +44,7 @@ def fetch_historical_data_yfinance(ticker, interval, days):
         st.error(f"❌ Yahoo Finance Error: {e}")
     return None
 
-# Function to Perform Bayesian Forecasting
+# Function to Perform Bayesian Forecasting on Historical Data
 def bayesian_forecast(df):
     if df is None or df.empty:
         return None
@@ -55,41 +55,74 @@ def bayesian_forecast(df):
     prior_mean = df["Returns"].mean()
     prior_std = df["Returns"].std()
 
-    # Assume new observed return is the last return
-    observed_return = df["Returns"].iloc[-1]
+    # Compute Bayesian posterior for each price point
+    predicted_prices = []
+    for i in range(1, len(df)):
+        observed_return = df["Returns"].iloc[i-1]
+        posterior_mean = (prior_mean + observed_return) / 2
+        posterior_std = np.sqrt((prior_std ** 2 + observed_return ** 2) / 2)
+        predicted_price = df["Close"].iloc[i-1] * (1 + posterior_mean)  # Forecasted price
 
-    # Compute Bayesian posterior mean and standard deviation
-    posterior_mean = (prior_mean + observed_return) / 2
-    posterior_std = np.sqrt((prior_std ** 2 + observed_return ** 2) / 2)
+        predicted_prices.append(predicted_price)
 
-    # Predict probability of price moving up or down
-    up_prob = norm.cdf(0, loc=posterior_mean, scale=posterior_std)
-    down_prob = 1 - up_prob
+    # Align predicted prices with actual data
+    df = df.iloc[1:].copy()  # Remove the first row (since it has no prediction)
+    df["Predicted Close"] = predicted_prices
 
-    # Forecast next closing price based on expected return
+    # Get next predicted price for future reference
     last_close = df["Close"].iloc[-1]
-    predicted_price = last_close * (1 + posterior_mean)  # Bayesian forecasted next price
+    next_predicted_price = last_close * (1 + posterior_mean)
 
-    return {
+    return df, {
         "posterior_mean": posterior_mean,
         "posterior_std": posterior_std,
-        "up_prob": up_prob,
-        "down_prob": down_prob,
-        "predicted_price": predicted_price,
+        "predicted_price": next_predicted_price,
         "last_close": last_close
     }
 
-# Function to Generate AI Trading Strategy with Bayesian Forecasting
+# 📊 BUTTON 1: Get Historical Data & Predictions
+if st.button("Get Historical Data"):
+    with st.spinner(f"Fetching {selected_stock} data..."):
+        historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
+
+    if historical_data is not None and not historical_data.empty:
+        st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
+
+        # Perform Bayesian Forecasting on Historical Data
+        predicted_data, bayesian_results = bayesian_forecast(historical_data)
+
+        if bayesian_results:
+            # Plot actual vs. predicted prices
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(predicted_data["Date"], predicted_data["Close"], label="Actual Close Price", color="blue")
+            ax.plot(predicted_data["Date"], predicted_data["Predicted Close"], linestyle="dashed", label="Predicted Close Price", color="red")
+            ax.scatter(predicted_data["Date"].iloc[-1], bayesian_results["predicted_price"], color="green", label="Next Predicted Price", zorder=3)
+            ax.legend()
+            ax.set_title(f"{selected_stock} Price Chart & Bayesian Forecast")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Price")
+            st.pyplot(fig)
+
+            st.subheader("📋 Historical Data with Predictions (Last 150 Entries)")
+            st.dataframe(predicted_data.tail(150))  # Show last 150 entries with predicted values
+
+            st.subheader("📊 Bayesian Forecasting Results")
+            st.write(f"🔹 **Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
+            st.write(f"🔹 **Posterior Mean (Expected Return):** {bayesian_results['posterior_mean']:.5f}")
+            st.write(f"🔹 **Posterior Std Dev (Market Volatility):** {bayesian_results['posterior_std']:.5f}")
+
+            # Store data for AI analysis
+            st.session_state["historical_data"] = predicted_data
+            st.session_state["bayesian_results"] = bayesian_results
+    else:
+        st.error("❌ No historical data found. Try a different time period.")
+
+# 🤖 BUTTON 2: Get AI Trading Strategy
 def generate_ai_strategy(df, ticker, bayesian_results):
     if df is None or df.empty:
         return "No sufficient data to generate a strategy."
 
     latest_data = df.tail(50).to_string(index=False)  # AI learns from last 50 market data points
-
-    # Bayesian Forecasting Results
-    up_prob = round(bayesian_results["up_prob"] * 100, 2)
-    down_prob = round(bayesian_results["down_prob"] * 100, 2)
-    predicted_price = round(bayesian_results["predicted_price"], 2)
 
     prompt = f"""
     You are an AI trading expert analyzing {ticker} stock using the last {len(df)} historical data points.
@@ -98,11 +131,9 @@ def generate_ai_strategy(df, ticker, bayesian_results):
     {latest_data}
 
     Bayesian Forecasting indicates:
-    - **Probability of price increase:** {up_prob}%
-    - **Probability of price decrease:** {down_prob}%
+    - **Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}
     - **Expected return (posterior mean):** {bayesian_results['posterior_mean']}
     - **Market volatility (posterior std dev):** {bayesian_results['posterior_std']}
-    - **Predicted next closing price:** ${predicted_price}
 
     Provide a **detailed technical strategy** including:
     - **Current market trend (bullish, bearish, sideways)**
@@ -124,43 +155,6 @@ def generate_ai_strategy(df, ticker, bayesian_results):
 
     return response.choices[0].message.content.strip()
 
-# 📊 BUTTON 1: Get Historical Data
-if st.button("Get Historical Data"):
-    with st.spinner(f"Fetching {selected_stock} data..."):
-        historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
-
-    if historical_data is not None and not historical_data.empty:
-        st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
-        
-        # Perform Bayesian Forecasting
-        bayesian_results = bayesian_forecast(historical_data)
-
-        if bayesian_results:
-            # Plot the historical data & prediction
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(historical_data["Date"], historical_data["Close"], label="Historical Close Price", color="blue")
-            ax.scatter(historical_data["Date"].iloc[-1], bayesian_results["predicted_price"], color="red", label="Predicted Next Price", zorder=3)
-            ax.legend()
-            ax.set_title(f"{selected_stock} Price Chart & Bayesian Forecast")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Price")
-            st.pyplot(fig)
-
-            st.subheader("📋 Historical Data (Last 150 Entries)")
-            st.dataframe(historical_data.tail(150))  # Show last 150 entries for better insights
-
-            st.subheader("📊 Bayesian Forecasting Results")
-            st.write(f"🔹 **Probability of Price Increase:** {round(bayesian_results['up_prob'] * 100, 2)}%")
-            st.write(f"🔹 **Probability of Price Decrease:** {round(bayesian_results['down_prob'] * 100, 2)}%")
-            st.write(f"🔹 **Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
-
-            # Store data for AI analysis
-            st.session_state["historical_data"] = historical_data
-            st.session_state["bayesian_results"] = bayesian_results
-    else:
-        st.error("❌ No historical data found. Try a different time period.")
-
-# 🤖 BUTTON 2: Get AI Trading Strategy
 if st.button("Get AI Trading Strategy"):
     if "historical_data" in st.session_state and not st.session_state["historical_data"].empty:
         with st.spinner("Generating AI trading strategy..."):
