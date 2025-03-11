@@ -133,29 +133,27 @@ def generate_ai_strategy(df, bayesian_results, stock):
     )
     return response.choices[0].message.content.strip()
 
-# Fetch & Process Data
+# Buttons to Fetch Data & Get AI Strategy
 if st.button("Get Historical Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
         historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
-    
     if historical_data is not None:
         historical_data = supertrend(historical_data)
         predicted_data, bayesian_results = bayesian_forecast(historical_data)
         predicted_data = backtest_strategy(predicted_data)
-        ai_strategy = generate_ai_strategy(predicted_data, bayesian_results, selected_stock)
-        
-        st.subheader("🤖 AI Trading Strategy")
-        st.write(ai_strategy)
-        
         st.subheader("📊 Data Table with Backtest Performance")
         st.dataframe(predicted_data.tail(150))
-        
         st.subheader("🔢 Bayesian Forecast Results")
         st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
         st.write(f"**Posterior Mean:** {bayesian_results['posterior_mean']:.5f}")
         st.write(f"**Posterior Std Dev:** {bayesian_results['posterior_std']:.5f}")
-        
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
+
+if st.button("Get AI Trading Strategy"):
+    if 'historical_data' in st.session_state and 'bayesian_results' in st.session_state:
+        ai_strategy = generate_ai_strategy(st.session_state['historical_data'], st.session_state['bayesian_results'], selected_stock)
+        st.subheader("🤖 AI Trading Strategy")
+        st.write(ai_strategy)
     else:
-        st.error("❌ No historical data found.")
+        st.error("❗ Please fetch historical data first.")
