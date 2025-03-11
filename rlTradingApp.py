@@ -18,7 +18,7 @@ OPENAI_API_KEY = st.secrets["OPENAI"]["API_KEY"]
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Streamlit App Title
-st.title("\ud83d\udcca AI-Powered Trading Advisor with Bayesian Forecasting")
+st.title("📊 AI-Powered Trading Advisor with Bayesian Forecasting")
 
 # List of Top Stocks / ETFs
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B"]
@@ -39,7 +39,7 @@ def fetch_historical_data_yfinance(ticker, interval, days):
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
             return historical_data
     except Exception as e:
-        st.error(f"\u274c Yahoo Finance Error: {e}")
+        st.error(f"❌ Yahoo Finance Error: {e}")
     return None
 
 # Function to Compute Supertrend
@@ -125,10 +125,10 @@ if st.button("Get Historical Data"):
             ax.set_ylabel("Price")
             st.pyplot(fig)
             
-            st.subheader("\ud83d\udcca Data Table with Posterior Probabilities")
+            st.subheader("📊 Data Table with Posterior Probabilities")
             st.dataframe(predicted_data.tail(150))
             
-            st.subheader("\ud83d\udd22 Bayesian Forecast Results")
+            st.subheader("🔢 Bayesian Forecast Results")
             st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
             st.write(f"**Posterior Mean:** {bayesian_results['posterior_mean']:.5f}")
             st.write(f"**Posterior Std Dev:** {bayesian_results['posterior_std']:.5f}")
@@ -136,4 +136,4 @@ if st.button("Get Historical Data"):
             st.session_state['historical_data'] = predicted_data
             st.session_state['bayesian_results'] = bayesian_results
     else:
-        st.error("\u274c No historical data found.")
+        st.error("❌ No historical data found.")
