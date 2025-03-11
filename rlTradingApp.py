@@ -113,6 +113,26 @@ def backtest_strategy(df):
     df['Cumulative Returns'] = (1 + df['Strategy Returns']).cumprod()
     return df
 
+# Function to Generate AI Trade Strategy
+def generate_ai_strategy(df, bayesian_results, stock):
+    prompt = f"""
+    You are a high-probability trading AI.
+    Analyze {stock} market data and Bayesian forecasting.
+    Use historical patterns to predict the best strategy.
+    Bayesian results:
+    - Predicted Next Closing Price: {bayesian_results['predicted_price']}
+    - Posterior Mean: {bayesian_results['posterior_mean']}
+    - Posterior Std Dev: {bayesian_results['posterior_std']}
+    Provide a detailed, realistic trade plan.
+    """
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "system", "content": "You are a trading AI providing advanced market analysis."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
+
 # Fetch & Process Data
 if st.button("Get Historical Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
@@ -122,25 +142,20 @@ if st.button("Get Historical Data"):
         historical_data = supertrend(historical_data)
         predicted_data, bayesian_results = bayesian_forecast(historical_data)
         predicted_data = backtest_strategy(predicted_data)
+        ai_strategy = generate_ai_strategy(predicted_data, bayesian_results, selected_stock)
         
-        if bayesian_results:
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(predicted_data['Date'], predicted_data['Cumulative Returns'], label="Backtest Performance", color="purple")
-            ax.legend()
-            ax.set_title(f"{selected_stock} Strategy Backtest")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Cumulative Returns")
-            st.pyplot(fig)
-            
-            st.subheader("📊 Data Table with Backtest Performance")
-            st.dataframe(predicted_data.tail(150))
-            
-            st.subheader("🔢 Bayesian Forecast Results")
-            st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
-            st.write(f"**Posterior Mean:** {bayesian_results['posterior_mean']:.5f}")
-            st.write(f"**Posterior Std Dev:** {bayesian_results['posterior_std']:.5f}")
-            
-            st.session_state['historical_data'] = predicted_data
-            st.session_state['bayesian_results'] = bayesian_results
+        st.subheader("🤖 AI Trading Strategy")
+        st.write(ai_strategy)
+        
+        st.subheader("📊 Data Table with Backtest Performance")
+        st.dataframe(predicted_data.tail(150))
+        
+        st.subheader("🔢 Bayesian Forecast Results")
+        st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
+        st.write(f"**Posterior Mean:** {bayesian_results['posterior_mean']:.5f}")
+        st.write(f"**Posterior Std Dev:** {bayesian_results['posterior_std']:.5f}")
+        
+        st.session_state['historical_data'] = predicted_data
+        st.session_state['bayesian_results'] = bayesian_results
     else:
         st.error("❌ No historical data found.")
