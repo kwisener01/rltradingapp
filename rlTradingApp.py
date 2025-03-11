@@ -105,6 +105,14 @@ def bayesian_forecast(df):
         'last_close': last_close
     }
 
+# Function to Backtest Strategy
+def backtest_strategy(df):
+    df['Buy Signal'] = (df['Posterior Up'] > 0.6) & (df['Direction'] == 1)
+    df['Sell Signal'] = (df['Posterior Down'] > 0.6) & (df['Direction'] == -1)
+    df['Strategy Returns'] = df['Returns'] * df['Buy Signal'].shift(1) - df['Returns'] * df['Sell Signal'].shift(1)
+    df['Cumulative Returns'] = (1 + df['Strategy Returns']).cumprod()
+    return df
+
 # Fetch & Process Data
 if st.button("Get Historical Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
@@ -113,19 +121,18 @@ if st.button("Get Historical Data"):
     if historical_data is not None:
         historical_data = supertrend(historical_data)
         predicted_data, bayesian_results = bayesian_forecast(historical_data)
+        predicted_data = backtest_strategy(predicted_data)
         
         if bayesian_results:
             fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(predicted_data['Date'], predicted_data['Close'], label="Actual Close", color="blue")
-            ax.plot(predicted_data['Date'], predicted_data['Predicted Close'], linestyle="dashed", label="Predicted Close", color="red")
-            ax.scatter(predicted_data['Date'].iloc[-1], bayesian_results['predicted_price'], color="green", label="Next Prediction", zorder=3)
+            ax.plot(predicted_data['Date'], predicted_data['Cumulative Returns'], label="Backtest Performance", color="purple")
             ax.legend()
-            ax.set_title(f"{selected_stock} Bayesian Forecast & Supertrend")
+            ax.set_title(f"{selected_stock} Strategy Backtest")
             ax.set_xlabel("Date")
-            ax.set_ylabel("Price")
+            ax.set_ylabel("Cumulative Returns")
             st.pyplot(fig)
             
-            st.subheader("📊 Data Table with Posterior Probabilities")
+            st.subheader("📊 Data Table with Backtest Performance")
             st.dataframe(predicted_data.tail(150))
             
             st.subheader("🔢 Bayesian Forecast Results")
