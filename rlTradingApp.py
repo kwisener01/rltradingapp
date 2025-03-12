@@ -131,3 +131,13 @@ if st.button("Get Historical Data"):
         st.write(f"**Trend Direction:** {predicted_data['Trend Direction'].iloc[-1]}")
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
+
+# AI Trading Strategy Button
+if st.button("Get AI Trading Strategy"):
+    if "historical_data" in st.session_state and not st.session_state["historical_data"].empty:
+        with st.spinner("Generating AI trading strategy..."):
+            ai_strategy = "AI-based reinforcement learning strategy under development..."
+        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
+        st.write(ai_strategy)
+    else:
+        st.error("❗ Please fetch stock data first before requesting AI analysis.")
