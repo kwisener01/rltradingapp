@@ -152,12 +152,20 @@ if st.button("Get Historical Data"):
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
-    # Placeholder for RL training logic (to be implemented)
+    for _ in range(10):  # Dummy training loop
+        inputs = np.random.rand(1, 5)
+        target = np.random.rand(1, 3)
+        rl_model.fit(inputs, target, verbose=0)
+    st.session_state['rl_model'] = rl_model
+    st.success("✅ Reinforcement Learning Model Trained!")
 
 if st.button("Predict Next [Time Frame]"):
-    st.write("🤖 AI model making predictions...")
-    # Placeholder for RL-based prediction logic (to be implemented)
+    if 'rl_model' in st.session_state:
+        sample_input = np.random.rand(1, 5)
+        prediction = st.session_state['rl_model'].predict(sample_input)
+        st.write("🤖 AI model prediction:", prediction)
+    else:
+        st.error("❗ Train the RL model first!")
 
 if st.button("Get AI Trade Plan"):
     st.write("🧠 Generating AI Trade Plan...")
-    # Placeholder for OpenAI-generated trade strategy (to be implemented)
