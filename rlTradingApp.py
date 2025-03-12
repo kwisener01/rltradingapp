@@ -9,6 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.stats import t
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -18,7 +21,7 @@ OPENAI_API_KEY = st.secrets["OPENAI"]["API_KEY"]
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor with Bayesian Forecasting")
+st.title("📊 AI-Powered Trading Advisor with Reinforcement Learning")
 
 # List of Top Stocks / ETFs
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B"]
@@ -77,6 +80,8 @@ def bayesian_forecast(df):
     posterior_down = []
     predicted_prices = []
     trend_directions = []
+    buy_signals = []
+    sell_signals = []
     
     for i in range(1, len(df)):
         observed_return = df['Returns'].iloc[i-1]
@@ -94,16 +99,24 @@ def bayesian_forecast(df):
         # Determine Trend Direction
         if prob_up > 0.6:
             trend_directions.append("Up")
+            buy_signals.append(1)
+            sell_signals.append(0)
         elif prob_down > 0.6:
             trend_directions.append("Down")
+            buy_signals.append(0)
+            sell_signals.append(1)
         else:
             trend_directions.append("Sideways")
+            buy_signals.append(0)
+            sell_signals.append(0)
     
     df = df.iloc[1:].copy()
     df['Predicted Close'] = predicted_prices
     df['Posterior Up'] = posterior_up
     df['Posterior Down'] = posterior_down
     df['Trend Direction'] = trend_directions
+    df['Buy Signal'] = buy_signals
+    df['Sell Signal'] = sell_signals
     
     last_close = df['Close'].iloc[-1]
     next_predicted_price = last_close * (1 + posterior_mean)
@@ -115,7 +128,7 @@ def bayesian_forecast(df):
         'last_close': last_close
     }
 
-# Buttons to Fetch Data & Get AI Strategy
+# Buttons to Fetch Data & Train Model
 if st.button("Get Historical Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
         historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
@@ -132,12 +145,6 @@ if st.button("Get Historical Data"):
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
 
-# AI Trading Strategy Button
-if st.button("Get AI Trading Strategy"):
-    if "historical_data" in st.session_state and not st.session_state["historical_data"].empty:
-        with st.spinner("Generating AI trading strategy..."):
-            ai_strategy = "AI-based reinforcement learning strategy under development..."
-        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
-        st.write(ai_strategy)
-    else:
-        st.error("❗ Please fetch stock data first before requesting AI analysis.")
+if st.button("Train Reinforcement Learning Model"):
+    st.write("🔬 Reinforcement learning training in progress...")
+    # Placeholder for RL training logic
