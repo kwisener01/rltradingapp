@@ -12,6 +12,7 @@ from scipy.stats import t
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import random
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -89,14 +90,12 @@ def bayesian_forecast(df):
         posterior_std = np.sqrt((prior_std ** 2 + observed_return ** 2) / 2)
         predicted_price = df['Close'].iloc[i-1] * (1 + posterior_mean)
         
-        # Bayesian posterior probabilities
         prob_up = norm.cdf(observed_return, prior_mean, prior_std)
         prob_down = 1 - prob_up
         posterior_up.append(prob_up)
         posterior_down.append(prob_down)
         predicted_prices.append(predicted_price)
         
-        # Determine Trend Direction
         if prob_up > 0.6:
             trend_directions.append("Up")
             buy_signals.append(1)
@@ -128,23 +127,36 @@ def bayesian_forecast(df):
         'last_close': last_close
     }
 
-# Buttons to Fetch Data & Train Model
+# Reinforcement Learning Model
+def build_rl_model():
+    model = keras.Sequential([
+        layers.Dense(64, activation='relu', input_shape=(5,)),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(3, activation='linear')  # 3 Actions: Buy, Sell, Hold
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
+rl_model = build_rl_model()
+
 if st.button("Get Historical Data"):
     with st.spinner(f"Fetching {selected_stock} data..."):
         historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
     if historical_data is not None:
         historical_data = supertrend(historical_data)
         predicted_data, bayesian_results = bayesian_forecast(historical_data)
-        st.subheader("📊 Data Table with Backtest Performance")
         st.dataframe(predicted_data.tail(150))
-        st.subheader("🔢 Bayesian Forecast Results")
-        st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
-        st.write(f"**Posterior Up Probability:** {predicted_data['Posterior Up'].iloc[-1]:.5f}")
-        st.write(f"**Posterior Down Probability:** {predicted_data['Posterior Down'].iloc[-1]:.5f}")
-        st.write(f"**Trend Direction:** {predicted_data['Trend Direction'].iloc[-1]}")
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
     # Placeholder for RL training logic
+
+if st.button("Predict Next [Time Frame]"):
+    st.write("🤖 AI model making predictions...")
+    # Placeholder for RL-based prediction logic
+
+if st.button("Get AI Trade Plan"):
+    st.write("🧠 Generating AI Trade Plan...")
+    # Placeholder for OpenAI-generated trade strategy
