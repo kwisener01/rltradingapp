@@ -13,6 +13,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import random
+import pickle
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -127,7 +128,7 @@ def bayesian_forecast(df):
         'last_close': last_close
     }
 
-# Reinforcement Learning Model
+# Deep Q-Learning Model
 def build_rl_model():
     model = keras.Sequential([
         layers.Dense(64, activation='relu', input_shape=(5,)),
@@ -151,12 +152,12 @@ if st.button("Get Historical Data"):
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
-    # Placeholder for RL training logic
+    # Placeholder for RL training logic (to be implemented)
 
 if st.button("Predict Next [Time Frame]"):
     st.write("🤖 AI model making predictions...")
-    # Placeholder for RL-based prediction logic
+    # Placeholder for RL-based prediction logic (to be implemented)
 
 if st.button("Get AI Trade Plan"):
     st.write("🧠 Generating AI Trade Plan...")
-    # Placeholder for OpenAI-generated trade strategy
+    # Placeholder for OpenAI-generated trade strategy (to be implemented)
