@@ -76,6 +76,7 @@ def bayesian_forecast(df):
     posterior_up = []
     posterior_down = []
     predicted_prices = []
+    trend_directions = []
     
     for i in range(1, len(df)):
         observed_return = df['Returns'].iloc[i-1]
@@ -89,11 +90,20 @@ def bayesian_forecast(df):
         posterior_up.append(prob_up)
         posterior_down.append(prob_down)
         predicted_prices.append(predicted_price)
+        
+        # Determine Trend Direction
+        if prob_up > 0.6:
+            trend_directions.append("Up")
+        elif prob_down > 0.6:
+            trend_directions.append("Down")
+        else:
+            trend_directions.append("Sideways")
     
     df = df.iloc[1:].copy()
     df['Predicted Close'] = predicted_prices
     df['Posterior Up'] = posterior_up
     df['Posterior Down'] = posterior_down
+    df['Trend Direction'] = trend_directions
     
     last_close = df['Close'].iloc[-1]
     next_predicted_price = last_close * (1 + posterior_mean)
@@ -104,34 +114,6 @@ def bayesian_forecast(df):
         'predicted_price': next_predicted_price,
         'last_close': last_close
     }
-
-# Function to Backtest Strategy
-def backtest_strategy(df):
-    df['Buy Signal'] = (df['Posterior Up'] > 0.6) & (df['Direction'] == 1)
-    df['Sell Signal'] = (df['Posterior Down'] > 0.6) & (df['Direction'] == -1)
-    df['Strategy Returns'] = df['Returns'] * df['Buy Signal'].shift(1) - df['Returns'] * df['Sell Signal'].shift(1)
-    df['Cumulative Returns'] = (1 + df['Strategy Returns']).cumprod()
-    return df
-
-# Function to Generate AI Trade Strategy
-def generate_ai_strategy(df, bayesian_results, stock):
-    prompt = f"""
-    You are a high-probability trading AI.
-    Analyze {stock} market data and Bayesian forecasting.
-    Use historical patterns to predict the best strategy.
-    Bayesian results:
-    - Predicted Next Closing Price: {bayesian_results['predicted_price']}
-    - Posterior Mean: {bayesian_results['posterior_mean']}
-    - Posterior Std Dev: {bayesian_results['posterior_std']}
-    Provide a detailed, realistic trade plan.
-    """
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "system", "content": "You are a trading AI providing advanced market analysis."},
-                  {"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    return response.choices[0].message.content.strip()
 
 # Buttons to Fetch Data & Get AI Strategy
 if st.button("Get Historical Data"):
@@ -146,14 +128,16 @@ if st.button("Get Historical Data"):
         st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
         st.write(f"**Posterior Up Probability:** {predicted_data['Posterior Up'].iloc[-1]:.5f}")
         st.write(f"**Posterior Down Probability:** {predicted_data['Posterior Down'].iloc[-1]:.5f}")
+        st.write(f"**Trend Direction:** {predicted_data['Trend Direction'].iloc[-1]}")
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
 
-
+# AI Trading Strategy Button
 if st.button("Get AI Trading Strategy"):
-    if 'historical_data' in st.session_state and 'bayesian_results' in st.session_state:
-        ai_strategy = generate_ai_strategy(st.session_state['historical_data'], st.session_state['bayesian_results'], selected_stock)
-        st.subheader("🤖 AI Trading Strategy")
+    if "historical_data" in st.session_state and not st.session_state["historical_data"].empty:
+        with st.spinner("Generating AI trading strategy..."):
+            ai_strategy = "AI-based reinforcement learning strategy under development..."
+        st.subheader(f"🤖 AI-Generated {selected_stock} Trading Strategy")
         st.write(ai_strategy)
     else:
-        st.error("❗ Please fetch historical data first.")
+        st.error("❗ Please fetch stock data first before requesting AI analysis.")
