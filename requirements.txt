@@ -7,3 +7,12 @@ plotly
 scipy
 matplotlib
 tensorflow
+streamlit
+requests
+yfinance
+pandas
+openai
+numpy
+matplotlib
+scipy
+tensorflow
