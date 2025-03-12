@@ -146,7 +146,6 @@ if st.button("Get Historical Data"):
         st.write(f"**Predicted Next Closing Price:** ${round(bayesian_results['predicted_price'], 2)}")
         st.write(f"**Posterior Up Probability:** {predicted_data['Posterior Up'].iloc[-1]:.5f}")
         st.write(f"**Posterior Down Probability:** {predicted_data['Posterior Down'].iloc[-1]:.5f}")
-        st.write(f"**Trend Direction:** {predicted_data['Trend Direction'].iloc[-1]}")
         st.session_state['historical_data'] = predicted_data
         st.session_state['bayesian_results'] = bayesian_results
 
