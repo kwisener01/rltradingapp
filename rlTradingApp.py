@@ -109,14 +109,17 @@ if "rl_model" not in st.session_state:
 
 if st.button("Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
-    if historical_data is not None:
-        st.session_state['historical_data'] = historical_data  # Store data in session
-        predicted_data = bayesian_forecast(historical_data)
 
-        if predicted_data is not None:
-            st.session_state['predicted_data'] = predicted_data
-            st.subheader("📋 Historical Data with Predictions")
-            st.dataframe(predicted_data.tail(150))
+    if historical_data is not None:
+        # Apply Bayesian Forecasting
+        predicted_df, forecast_summary = bayesian_forecast(historical_data)
+        
+        # Store both historical and predicted data
+        st.session_state['historical_data'] = historical_data
+        st.session_state['predicted_data'] = predicted_df  # ✅ Store in session state
+
+        # Display the last 150 records
+        st.dataframe(predicted_df.tail(150))
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
@@ -146,7 +149,6 @@ if st.button("Predict Next [Time Frame]"):
     if "rl_model" in st.session_state and "predicted_data" in st.session_state:
         df = st.session_state["predicted_data"]
 
-        # Ensure model has enough data
         if len(df) < 10:
             st.error("❌ Not enough data for prediction. Train with more historical data!")
         else:
@@ -169,6 +171,7 @@ if st.button("Predict Next [Time Frame]"):
             st.write(f"📉 Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
+
 
 
 if st.button("Get AI Trade Plan"):
