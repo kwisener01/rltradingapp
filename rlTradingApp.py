@@ -43,9 +43,15 @@ def fetch_historical_data_yfinance(ticker, interval, days):
             if "Date" not in historical_data.columns:
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
             
-            # Ensure Supertrend column exists (for RL training)
+            # Ensure required columns exist
+            if "Predicted Close" not in historical_data.columns:
+                historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  # Simple prediction
             if "Supertrend" not in historical_data.columns:
-                historical_data["Supertrend"] = np.nan  # Placeholder if missing
+                historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  # Placeholder
+            if "Posterior Up" not in historical_data.columns:
+                historical_data["Posterior Up"] = np.random.rand(len(historical_data))
+            if "Posterior Down" not in historical_data.columns:
+                historical_data["Posterior Down"] = 1 - historical_data["Posterior Up"]
             
             return historical_data
     except Exception as e:
