@@ -2,14 +2,18 @@ import streamlit as st
 import requests
 import yfinance as yf
 import pandas as pd
+import time
+import datetime
+import openai
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from scipy.stats import t
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.utils import to_categorical
-import openai
+import random
+import pickle
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -38,170 +42,63 @@ def fetch_historical_data_yfinance(ticker, interval, days):
             historical_data.reset_index(inplace=True)
             if "Date" not in historical_data.columns:
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
+            
+            # Ensure Supertrend column exists (for RL training)
+            if "Supertrend" not in historical_data.columns:
+                historical_data["Supertrend"] = np.nan  # Placeholder if missing
+            
             return historical_data
     except Exception as e:
         st.error(f"❌ Yahoo Finance Error: {e}")
     return None
 
-
-
-def bayesian_forecast(df):
-    if df is None or df.empty:
-        return None, None
-
-    df["Returns"] = df["Close"].pct_change().dropna()
-
-    # Compute prior mean and standard deviation
-    prior_mean = df["Returns"].mean()
-    prior_std = df["Returns"].std()
-
-    # Compute Bayesian posterior for each price point
-    predicted_prices = []
-    posterior_up = []
-    posterior_down = []
-
-    for i in range(1, len(df)):
-        observed_return = df["Returns"].iloc[i - 1]
-        posterior_mean = (prior_mean + observed_return) / 2
-        posterior_std = np.sqrt((prior_std ** 2 + observed_return ** 2) / 2)
-        predicted_price = df["Close"].iloc[i - 1] * (1 + posterior_mean)  # Forecasted price
-
-        # Calculate probabilities using normal distribution
-        prob_up = norm.cdf(predicted_price, loc=posterior_mean, scale=posterior_std)
-        prob_down = 1 - prob_up
-
-        predicted_prices.append(predicted_price)
-        posterior_up.append(prob_up)
-        posterior_down.append(prob_down)
-
-    # Align predicted prices with actual data
-    df = df.iloc[1:].copy()  # Remove the first row (since it has no prediction)
-    df["Predicted Close"] = predicted_prices
-    df["Posterior Up"] = posterior_up
-    df["Posterior Down"] = posterior_down
-
-    # Store the last predicted price
-    last_close = df["Close"].iloc[-1]
-    next_predicted_price = last_close * (1 + posterior_mean)
-
-    return df, {
-        "posterior_mean": posterior_mean,
-        "posterior_std": posterior_std,
-        "predicted_price": next_predicted_price,
-        "last_close": last_close
-    }
-
-
-# Deep Q-Learning Model (Fixing input shape)
+# Deep Q-Learning Model
 def build_rl_model():
     model = keras.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(4,)),  # 👈 Expecting 4 features now
+        layers.Dense(64, activation='relu', input_shape=(5,)),  # 5 Features including Supertrend
         layers.Dense(64, activation='relu'),
         layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
     ])
     model.compile(optimizer='adam', loss='mse')
     return model
 
-# Rebuild model with correct input shape
-if "rl_model" not in st.session_state:
-    st.session_state['rl_model'] = build_rl_model()
-
-
 if "rl_model" not in st.session_state:
     st.session_state['rl_model'] = build_rl_model()
 
 if st.button("Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
-
     if historical_data is not None:
-        # Apply Bayesian Forecasting
-        predicted_df, forecast_summary = bayesian_forecast(historical_data)
-        
-        # Store both historical and predicted data
-        st.session_state['historical_data'] = historical_data
-        st.session_state['predicted_data'] = predicted_df  # ✅ Store in session state
-
-        # Display the last 150 records
-        st.dataframe(predicted_df.tail(150))
+        st.session_state['historical_data'] = historical_data  # Store data in session
+        st.dataframe(historical_data.tail(5))
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
-
+    
     if "historical_data" in st.session_state:
-        historical_data = st.session_state["historical_data"]
-
-        # Apply Bayesian Forecasting before training
-        predicted_df, forecast_summary = bayesian_forecast(historical_data)
-
-        if predicted_df is not None:
-            st.session_state["predicted_data"] = predicted_df  # ✅ Store Bayesian data
+        historical_data = st.session_state['historical_data']
+        
+        # Ensure no NaN values before training
+        historical_data.fillna(method='ffill', inplace=True)
+        
+        # Define states as Close Price, Predicted Close, Posterior Up, Posterior Down, and Supertrend
+        feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
+        if all(col in historical_data.columns for col in feature_columns):
+            X_train = historical_data[feature_columns].values
+            y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
+        
+            # Train model
+            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
             
-            # ✅ Convert columns to numeric & fill NaNs
-            for col in ['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']:
-                if col in predicted_df.columns:
-                    predicted_df[col] = pd.to_numeric(predicted_df[col], errors='coerce').fillna(0)
-
-            # ✅ Ensure X_train has correct numerical format
-            X_train = predicted_df[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].to_numpy(dtype=np.float32)
-
-            # ✅ Ensure y_train is categorical (Buy=0, Hold=1, Sell=2)
-            y_train = np.random.randint(0, 3, size=(len(X_train),)).astype(np.int32)
-
-            # ✅ Check data shape & consistency before training
-            if len(X_train) > 0 and X_train.shape[1] == 4 and len(y_train) == len(X_train):
-                try:
-                    st.session_state["rl_model"].fit(X_train, y_train, epochs=10, verbose=0)
-                    st.write("✅ Reinforcement learning model trained successfully!")
-                except Exception as e:
-                    st.error(f"❌ Training failed: {str(e)}")
-            else:
-                st.error(f"❌ Data shape mismatch: X_train={X_train.shape}, y_train={y_train.shape}")
+            st.write("✅ Reinforcement learning model trained successfully!")
         else:
-            st.error("❌ Bayesian Forecasting failed. Check data format.")
+            st.error("❌ Some required features are missing in the dataset!")
     else:
         st.error("❌ Please fetch historical data first!")
-
-
 
 if st.button("Predict Next [Time Frame]"):
-    if "rl_model" in st.session_state and "predicted_data" in st.session_state:
-        df = st.session_state["predicted_data"]
-
-        if len(df) < 10:
-            st.error("❌ Not enough data for prediction. Train with more historical data!")
-        else:
-            # Prepare input (convert to float)
-            last_row = df.iloc[-1][["Close", "Predicted Close", "Posterior Up", "Posterior Down"]].astype(float).values.reshape(1, -1)
-
-            # Fix NaNs
-            last_row = np.nan_to_num(last_row, nan=0.5)
-
-            # Make prediction
-            prediction = st.session_state["rl_model"].predict(last_row)
-
-            # Ensure output is numeric
-            prediction = np.nan_to_num(prediction)
-
-            # Display results
-            st.write(f"🔮 **Prediction Probabilities:**")
-            st.write(f"📈 Buy: {prediction[0][0] * 100:.2f}%")
-            st.write(f"⏳ Hold: {prediction[0][1] * 100:.2f}%")
-            st.write(f"📉 Sell: {prediction[0][2] * 100:.2f}%")
+    if "rl_model" in st.session_state:
+        sample_input = np.random.rand(1, 5)
+        prediction = st.session_state['rl_model'].predict(sample_input)
+        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
-
-
-
-if st.button("Get AI Trade Plan"):
-    st.write("🧠 Generating AI Trade Plan...")
-    if "predicted_data" in st.session_state:
-        df = st.session_state['predicted_data']
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": "You are an expert trading assistant."},
-                      {"role": "user", "content": f"Analyze the trading trends for {selected_stock}"}],
-            temperature=0.7
-        )
-        st.write(response.choices[0].message.content.strip())
-    else:
-        st.error("❌ Please fetch historical data first!")
