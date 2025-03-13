@@ -140,6 +140,14 @@ def build_rl_model():
 
 st.session_state['rl_model'] = build_rl_model()
 
+if st.button("Get Historical Data"):
+    historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
+    if historical_data is not None:
+        st.dataframe(historical_data.tail(5))
+
+if st.button("Train Reinforcement Learning Model"):
+    st.write("🔬 Reinforcement learning training in progress...")
+
 if st.button("Predict Next [Time Frame]"):
     sample_input = np.random.rand(1, 5)
     prediction = st.session_state['rl_model'].predict(sample_input)
