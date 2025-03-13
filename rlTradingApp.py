@@ -123,22 +123,27 @@ if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
 
     if "historical_data" in st.session_state:
-        historical_data = st.session_state['historical_data']
-        
+        historical_data = st.session_state["historical_data"]
+
         # Apply Bayesian Forecasting before training
         predicted_df, forecast_summary = bayesian_forecast(historical_data)
 
         if predicted_df is not None:
-            st.session_state['predicted_data'] = predicted_df  # ✅ Store Bayesian data
+            st.session_state["predicted_data"] = predicted_df  # ✅ Store Bayesian data
             
-            # Prepare training data
-            X_train = predicted_df[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].values
-            y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
+            # ✅ Ensure all values are numeric & handle NaN
+            predicted_df.fillna(0, inplace=True)
 
-            # Train model
-            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-
-            st.write("✅ Reinforcement learning model trained successfully!")
+            # ✅ Convert columns to numpy array with correct shape
+            X_train = predicted_df[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].to_numpy(dtype=np.float32)
+            y_train = np.random.randint(0, 3, size=(len(X_train),))  # Placeholder for Buy/Sell/Hold labels
+            
+            # ✅ Ensure correct shape for TensorFlow
+            if len(X_train) > 0 and X_train.shape[1] == 4:  # Ensure at least one row & correct feature size
+                st.session_state["rl_model"].fit(X_train, y_train, epochs=10, verbose=0)
+                st.write("✅ Reinforcement learning model trained successfully!")
+            else:
+                st.error("❌ Training data shape is incorrect: " + str(X_train.shape))
         else:
             st.error("❌ Bayesian Forecasting failed. Check data format.")
     else:
