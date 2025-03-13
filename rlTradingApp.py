@@ -133,39 +133,17 @@ def build_rl_model():
     model = keras.Sequential([
         layers.Dense(64, activation='relu', input_shape=(5,)),
         layers.Dense(64, activation='relu'),
-        layers.Dense(3, activation='linear')  # 3 Actions: Buy, Sell, Hold
+        layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
     ])
     model.compile(optimizer='adam', loss='mse')
     return model
 
 rl_model = build_rl_model()
 
-if st.button("Get Historical Data"):
-    with st.spinner(f"Fetching {selected_stock} data..."):
-        historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
-    if historical_data is not None:
-        historical_data = supertrend(historical_data)
-        predicted_data, bayesian_results = bayesian_forecast(historical_data)
-        st.dataframe(predicted_data.tail(150))
-        st.session_state['historical_data'] = predicted_data
-        st.session_state['bayesian_results'] = bayesian_results
-
-if st.button("Train Reinforcement Learning Model"):
-    st.write("🔬 Reinforcement learning training in progress...")
-    for _ in range(10):  # Dummy training loop
-        inputs = np.random.rand(1, 5)
-        target = np.random.rand(1, 3)
-        rl_model.fit(inputs, target, verbose=0)
-    st.session_state['rl_model'] = rl_model
-    st.success("✅ Reinforcement Learning Model Trained!")
-
 if st.button("Predict Next [Time Frame]"):
     if 'rl_model' in st.session_state:
         sample_input = np.random.rand(1, 5)
         prediction = st.session_state['rl_model'].predict(sample_input)
-        st.write("🤖 AI model prediction:", prediction)
+        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0]:.2f}, Hold: {prediction[0][1]:.2f}, Sell: {prediction[0][2]:.2f}")
     else:
         st.error("❗ Train the RL model first!")
-
-if st.button("Get AI Trade Plan"):
-    st.write("🧠 Generating AI Trade Plan...")
