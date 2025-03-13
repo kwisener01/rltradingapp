@@ -130,14 +130,29 @@ if st.button("Train Reinforcement Learning Model"):
         st.error("❌ Please fetch historical data first!")
 
 if st.button("Predict Next [Time Frame]"):
-    if "rl_model" in st.session_state:
-        sample_input = np.random.rand(1, 5)  # Ensure correct shape
-        prediction = st.session_state['rl_model'].predict(sample_input)
+    if "rl_model" in st.session_state and "predicted_data" in st.session_state:
+        df = st.session_state["predicted_data"]
 
-        st.write(f"🔮 **Prediction Probabilities:**")
-        st.write(f"Buy: {prediction[0][0] * 100:.2f}%")
-        st.write(f"Hold: {prediction[0][1] * 100:.2f}%")
-        st.write(f"Sell: {prediction[0][2] * 100:.2f}%")
+        # Ensure the model is trained before predicting
+        if len(df) < 10:
+            st.error("❌ Not enough data for prediction. Train with more historical data!")
+        else:
+            # Prepare input (using last available row from `df`)
+            last_row = df.iloc[-1][["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Close - Predicted"]].values.reshape(1, -1)
+
+            # Check for NaNs before predicting
+            if np.isnan(last_row).any():
+                st.error("❌ Error: Input contains NaN values! Check data preprocessing.")
+            else:
+                prediction = st.session_state["rl_model"].predict(last_row)
+
+                if np.isnan(prediction).any():
+                    st.error("❌ Model returned NaN values. Try retraining.")
+                else:
+                    st.write(f"🔮 **Prediction Probabilities:**")
+                    st.write(f"📈 Buy: {prediction[0][0] * 100:.2f}%")
+                    st.write(f"⏳ Hold: {prediction[0][1] * 100:.2f}%")
+                    st.write(f"📉 Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
 
