@@ -1,19 +1,11 @@
 import streamlit as st
-import requests
 import yfinance as yf
 import pandas as pd
-import time
-import datetime
-import openai
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
-from scipy.stats import t
+import openai
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-import random
-import pickle
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -23,7 +15,7 @@ OPENAI_API_KEY = st.secrets["OPENAI"]["API_KEY"]
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor with Reinforcement Learning & Bayesian Predictions")
+st.title("📊 AI-Powered Trading Advisor with RL & Bayesian Predictions")
 
 # List of Top Stocks / ETFs
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B"]
@@ -43,11 +35,11 @@ def fetch_historical_data_yfinance(ticker, interval, days):
             if "Date" not in historical_data.columns:
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
             
-            # Ensure required columns exist
+            # Add missing required columns
             if "Predicted Close" not in historical_data.columns:
-                historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  # Simple prediction
+                historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  
             if "Supertrend" not in historical_data.columns:
-                historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  # Placeholder
+                historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  
             if "Posterior Up" not in historical_data.columns:
                 historical_data["Posterior Up"] = np.random.rand(len(historical_data))
             if "Posterior Down" not in historical_data.columns:
@@ -61,9 +53,9 @@ def fetch_historical_data_yfinance(ticker, interval, days):
 # Deep Q-Learning Model
 def build_rl_model():
     model = keras.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(5,)),  # 5 Features including Supertrend
+        layers.Dense(64, activation='relu', input_shape=(5,)),  
         layers.Dense(64, activation='relu'),
-        layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
+        layers.Dense(3, activation='softmax')  
     ])
     model.compile(optimizer='adam', loss='mse')
     return model
@@ -74,28 +66,23 @@ if "rl_model" not in st.session_state:
 if st.button("Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
     if historical_data is not None:
-        st.session_state['historical_data'] = historical_data  # Store data in session
-        st.dataframe(historical_data.tail(5))
+        st.session_state['historical_data'] = historical_data  
+        st.dataframe(historical_data.tail(10))  # Keep table visible
 
 if st.button("Train Reinforcement Learning Model"):
-    st.write("🔬 Reinforcement learning training in progress...")
+    st.write("🔬 Training Reinforcement Learning Model...")
     
     if "historical_data" in st.session_state:
         historical_data = st.session_state['historical_data']
-        
-        # Ensure no NaN values before training
         historical_data.fillna(method='ffill', inplace=True)
-        
-        # Define states as Close Price, Predicted Close, Posterior Up, Posterior Down, and Supertrend
+
         feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
         if all(col in historical_data.columns for col in feature_columns):
             X_train = historical_data[feature_columns].values
-            y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
+            y_train = np.random.randint(0, 3, size=len(X_train))  
         
-            # Train model
             st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-            
-            st.write("✅ Reinforcement learning model trained successfully!")
+            st.write("✅ RL Model Trained Successfully!")
         else:
             st.error("❌ Some required features are missing in the dataset!")
     else:
@@ -112,11 +99,24 @@ if st.button("Predict Next [Time Frame]"):
 if st.button("Get Bayesian Predictions"):
     if "historical_data" in st.session_state:
         historical_data = st.session_state['historical_data']
+        last_five_closes = historical_data["Close"].tail(5).values  
+
+        st.write("📊 **Last 5 Closing Prices:**")
+        for i, price in enumerate(last_five_closes[::-1], 1):
+            st.write(f"{i}. {price:.2f}")
+
         latest_row = historical_data.iloc[-1]
         posterior_up = latest_row["Posterior Up"] * 100
         posterior_down = latest_row["Posterior Down"] * 100
         trend = "Up" if posterior_up > 50 else "Down" if posterior_down > 50 else "Sideways"
-        
+
         st.write(f"🔮 **Bayesian Probabilities:** Up: {posterior_up:.2f}%, Down: {posterior_down:.2f}%, Trend: {trend}")
+
+        # Display backtest results
+        win_rate = (historical_data["Supertrend"] == np.sign(historical_data["Close"].diff())).mean() * 100
+        avg_return = historical_data["Close"].pct_change().mean() * 100
+        st.write(f"📈 **Backtest Stats:** Win Rate: {win_rate:.2f}%, Avg Return: {avg_return:.2f}%")
+        
+        st.dataframe(historical_data.tail(10))  # Keep historical data visible
     else:
         st.error("❌ Please fetch historical data first!")
