@@ -2,18 +2,13 @@ import streamlit as st
 import requests
 import yfinance as yf
 import pandas as pd
-import time
-import datetime
-import openai
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
-from scipy.stats import t
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-import random
-import pickle
+import openai
 
 # Load API Keys from Streamlit Secrets
 POLYGON_API_KEY = st.secrets["POLYGON"]["API_KEY"]
@@ -77,6 +72,7 @@ def bayesian_forecast(df):
     df["Posterior Up"] = posterior_up
     df["Posterior Down"] = posterior_down
     df["Trend Direction"] = trend_directions
+    df["Close - Predicted"] = df["Close"] - df["Predicted Close"]  # Additional feature
 
     last_close = df["Close"].iloc[-1]
     next_predicted_price = last_close * (1 + posterior_mean)
@@ -91,7 +87,7 @@ def bayesian_forecast(df):
 # Deep Q-Learning Model
 def build_rl_model():
     model = keras.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(5,)),
+        layers.Dense(64, activation='relu', input_shape=(5,)),  # Ensure 5 inputs
         layers.Dense(64, activation='relu'),
         layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
     ])
@@ -109,38 +105,38 @@ if st.button("Get Historical Data"):
 
         if bayesian_results:
             st.session_state['predicted_data'] = predicted_data
-            st.subheader(f"📈 {selected_stock} Historical Price Chart ({days} Days)")
-
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(predicted_data["Date"], predicted_data["Close"], label="Actual Close Price", color="blue")
-            ax.plot(predicted_data["Date"], predicted_data["Predicted Close"], linestyle="dashed", label="Predicted Close", color="red")
-            ax.legend()
-            ax.set_title(f"{selected_stock} Price Chart & Bayesian Forecast")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Price")
-            st.pyplot(fig)
-
             st.subheader("📋 Historical Data with Predictions")
             st.dataframe(predicted_data.tail(150))
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
-    
+
     if "predicted_data" in st.session_state:
         predicted_data = st.session_state['predicted_data']
-        X_train = predicted_data[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].values
-        y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
-        
-        st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-        st.write("✅ Reinforcement learning model trained successfully!")
+        X_train = predicted_data[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down', 'Close - Predicted']].values
+        y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder labels
+
+        # Debugging Output
+        st.write(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+
+        try:
+            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+            st.write("✅ Reinforcement learning model trained successfully!")
+        except ValueError as e:
+            st.error(f"❌ Model Training Error: {e}")
+
     else:
         st.error("❌ Please fetch historical data first!")
 
 if st.button("Predict Next [Time Frame]"):
     if "rl_model" in st.session_state:
-        sample_input = np.random.rand(1, 5)
+        sample_input = np.random.rand(1, 5)  # Ensure correct shape
         prediction = st.session_state['rl_model'].predict(sample_input)
-        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
+
+        st.write(f"🔮 **Prediction Probabilities:**")
+        st.write(f"Buy: {prediction[0][0] * 100:.2f}%")
+        st.write(f"Hold: {prediction[0][1] * 100:.2f}%")
+        st.write(f"Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
 
@@ -159,11 +155,7 @@ if st.button("Get AI Trade Plan"):
         - **Posterior Down:** {df['Posterior Down'].iloc[-1] * 100:.2f}%
         - **Trend Direction:** {df['Trend Direction'].iloc[-1]}
 
-        Provide a technical strategy including:
-        - Market trend (bullish, bearish, sideways)
-        - Key support & resistance levels
-        - Volume-based insights
-        - Recommended entry/exit points, stop-loss, and take-profit levels
+        Provide a trade strategy with entry/exit points, stop-loss, and take-profit levels.
         """
 
         response = client.chat.completions.create(
