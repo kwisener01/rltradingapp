@@ -8,6 +8,7 @@ from scipy.stats import norm
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.utils import to_categorical
 import openai
 
 # Load API Keys from Streamlit Secrets
@@ -74,24 +75,16 @@ def bayesian_forecast(df):
     df["Trend Direction"] = trend_directions
     df["Close - Predicted"] = df["Close"] - df["Predicted Close"]  # Additional feature
 
-    last_close = df["Close"].iloc[-1]
-    next_predicted_price = last_close * (1 + posterior_mean)
-
-    return df, {
-        "posterior_mean": posterior_mean,
-        "posterior_std": posterior_std,
-        "predicted_price": next_predicted_price,
-        "last_close": last_close
-    }
+    return df
 
 # Deep Q-Learning Model
 def build_rl_model():
     model = keras.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(5,)),  # Ensure 5 inputs
+        layers.Dense(64, activation='relu', input_shape=(5,)),  # Ensure 5 features
         layers.Dense(64, activation='relu'),
         layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
     ])
-    model.compile(optimizer='adam', loss='mse')
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
 if "rl_model" not in st.session_state:
@@ -101,9 +94,9 @@ if st.button("Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
     if historical_data is not None:
         st.session_state['historical_data'] = historical_data  # Store data in session
-        predicted_data, bayesian_results = bayesian_forecast(historical_data)
+        predicted_data = bayesian_forecast(historical_data)
 
-        if bayesian_results:
+        if predicted_data is not None:
             st.session_state['predicted_data'] = predicted_data
             st.subheader("📋 Historical Data with Predictions")
             st.dataframe(predicted_data.tail(150))
@@ -114,16 +107,24 @@ if st.button("Train Reinforcement Learning Model"):
     if "predicted_data" in st.session_state:
         predicted_data = st.session_state['predicted_data']
         X_train = predicted_data[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down', 'Close - Predicted']].values
-        y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder labels
+
+        # Randomly generate labels for training (0=Buy, 1=Hold, 2=Sell) - Replace this with actual labels later
+        y_train = np.random.randint(0, 3, size=len(X_train))
+
+        # One-hot encode `y_train` for TensorFlow training
+        y_train = to_categorical(y_train, num_classes=3)
 
         # Debugging Output
         st.write(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
 
-        try:
-            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-            st.write("✅ Reinforcement learning model trained successfully!")
-        except ValueError as e:
-            st.error(f"❌ Model Training Error: {e}")
+        if X_train.shape[0] > 10:  # Ensure enough samples
+            try:
+                st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+                st.write("✅ Reinforcement learning model trained successfully!")
+            except ValueError as e:
+                st.error(f"❌ Model Training Error: {e}")
+        else:
+            st.error("❌ Not enough historical data to train the model!")
 
     else:
         st.error("❌ Please fetch historical data first!")
@@ -144,27 +145,12 @@ if st.button("Get AI Trade Plan"):
     st.write("🧠 Generating AI Trade Plan...")
     if "predicted_data" in st.session_state:
         df = st.session_state['predicted_data']
-        prompt = f"""
-        You are an AI trading assistant analyzing {selected_stock}.
-        Last 5 records:
-        {df.tail(5).to_string(index=False)}
-
-        Bayesian Forecasting:
-        - **Predicted Next Closing Price:** ${round(df['Predicted Close'].iloc[-1], 2)}
-        - **Posterior Up:** {df['Posterior Up'].iloc[-1] * 100:.2f}%
-        - **Posterior Down:** {df['Posterior Down'].iloc[-1] * 100:.2f}%
-        - **Trend Direction:** {df['Trend Direction'].iloc[-1]}
-
-        Provide a trade strategy with entry/exit points, stop-loss, and take-profit levels.
-        """
-
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "system", "content": "You are an expert trading assistant."},
-                      {"role": "user", "content": prompt}],
+                      {"role": "user", "content": f"Analyze the trading trends for {selected_stock}"}],
             temperature=0.7
         )
-
         st.write(response.choices[0].message.content.strip())
     else:
         st.error("❌ Please fetch historical data first!")
