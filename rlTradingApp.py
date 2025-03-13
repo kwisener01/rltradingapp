@@ -43,9 +43,11 @@ def fetch_historical_data_yfinance(ticker, interval, days):
         st.error(f"❌ Yahoo Finance Error: {e}")
     return None
 
+
+
 def bayesian_forecast(df):
     if df is None or df.empty:
-        return None
+        return None, None
 
     df["Returns"] = df["Close"].pct_change().dropna()
 
@@ -55,34 +57,30 @@ def bayesian_forecast(df):
 
     # Compute Bayesian posterior for each price point
     predicted_prices = []
-    posterior_up_probs = []
-    posterior_down_probs = []
+    posterior_up = []
+    posterior_down = []
 
     for i in range(1, len(df)):
-        observed_return = df["Returns"].iloc[i-1]
-        
-        # Bayesian Posterior Mean & Std
+        observed_return = df["Returns"].iloc[i - 1]
         posterior_mean = (prior_mean + observed_return) / 2
         posterior_std = np.sqrt((prior_std ** 2 + observed_return ** 2) / 2)
-        
-        # Forecasted price
-        predicted_price = df["Close"].iloc[i-1] * (1 + posterior_mean)
+        predicted_price = df["Close"].iloc[i - 1] * (1 + posterior_mean)  # Forecasted price
+
+        # Calculate probabilities using normal distribution
+        prob_up = norm.cdf(predicted_price, loc=posterior_mean, scale=posterior_std)
+        prob_down = 1 - prob_up
+
         predicted_prices.append(predicted_price)
-        
-        # Compute up/down probabilities
-        posterior_up = norm.cdf(0, loc=posterior_mean, scale=posterior_std)
-        posterior_down = 1 - posterior_up
-        
-        posterior_up_probs.append(posterior_up)
-        posterior_down_probs.append(posterior_down)
+        posterior_up.append(prob_up)
+        posterior_down.append(prob_down)
 
     # Align predicted prices with actual data
     df = df.iloc[1:].copy()  # Remove the first row (since it has no prediction)
     df["Predicted Close"] = predicted_prices
-    df["Posterior Up"] = posterior_up_probs
-    df["Posterior Down"] = posterior_down_probs
+    df["Posterior Up"] = posterior_up
+    df["Posterior Down"] = posterior_down
 
-    # Get next predicted price for future reference
+    # Store the last predicted price
     last_close = df["Close"].iloc[-1]
     next_predicted_price = last_close * (1 + posterior_mean)
 
@@ -123,26 +121,29 @@ if st.button("Get Historical Data"):
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
-    
+
     if "historical_data" in st.session_state:
         historical_data = st.session_state['historical_data']
         
-        # Ensure all columns are numeric
-        historical_data = historical_data.apply(pd.to_numeric, errors='coerce')
-        
-        # Drop any remaining NaNs
-        historical_data.dropna(inplace=True)
+        # Apply Bayesian Forecasting before training
+        predicted_df, forecast_summary = bayesian_forecast(historical_data)
 
-        # Define X (features) and Y (random labels for now)
-        X_train = historical_data[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].values
-        y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
+        if predicted_df is not None:
+            st.session_state['predicted_data'] = predicted_df  # ✅ Store Bayesian data
+            
+            # Prepare training data
+            X_train = predicted_df[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].values
+            y_train = np.random.randint(0, 3, size=len(X_train))  # Placeholder for Buy/Sell/Hold labels
 
-        # Train model
-        st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-        
-        st.write("✅ Reinforcement learning model trained successfully!")
+            # Train model
+            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+
+            st.write("✅ Reinforcement learning model trained successfully!")
+        else:
+            st.error("❌ Bayesian Forecasting failed. Check data format.")
     else:
         st.error("❌ Please fetch historical data first!")
+
 
 
 if st.button("Predict Next [Time Frame]"):
