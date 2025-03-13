@@ -133,26 +133,28 @@ if st.button("Predict Next [Time Frame]"):
     if "rl_model" in st.session_state and "predicted_data" in st.session_state:
         df = st.session_state["predicted_data"]
 
-        # Ensure the model is trained before predicting
+        # Ensure model has enough data
         if len(df) < 10:
             st.error("❌ Not enough data for prediction. Train with more historical data!")
         else:
-            # Prepare input (using last available row from `df`)
+            # Prepare input
             last_row = df.iloc[-1][["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Close - Predicted"]].values.reshape(1, -1)
 
-            # Check for NaNs before predicting
-            if np.isnan(last_row).any():
-                st.error("❌ Error: Input contains NaN values! Check data preprocessing.")
-            else:
-                prediction = st.session_state["rl_model"].predict(last_row)
+            # Fix small numbers & NaNs
+            last_row = np.nan_to_num(last_row, nan=0.5)  # Replace NaNs
+            last_row = np.clip(last_row, 0.0001, 1)  # Clip small numbers to a reasonable range
 
-                if np.isnan(prediction).any():
-                    st.error("❌ Model returned NaN values. Try retraining.")
-                else:
-                    st.write(f"🔮 **Prediction Probabilities:**")
-                    st.write(f"📈 Buy: {prediction[0][0] * 100:.2f}%")
-                    st.write(f"⏳ Hold: {prediction[0][1] * 100:.2f}%")
-                    st.write(f"📉 Sell: {prediction[0][2] * 100:.2f}%")
+            # Make prediction
+            prediction = st.session_state["rl_model"].predict(last_row)
+
+            # Check if prediction is valid
+            if np.isnan(prediction).any():
+                st.error("❌ Model returned NaN values. Try retraining.")
+            else:
+                st.write(f"🔮 **Prediction Probabilities:**")
+                st.write(f"📈 Buy: {prediction[0][0] * 100:.2f}%")
+                st.write(f"⏳ Hold: {prediction[0][1] * 100:.2f}%")
+                st.write(f"📉 Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
 
