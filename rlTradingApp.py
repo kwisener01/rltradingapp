@@ -92,15 +92,20 @@ def bayesian_forecast(df):
     }
 
 
-# Deep Q-Learning Model
+# Deep Q-Learning Model (Fixing input shape)
 def build_rl_model():
     model = keras.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(5,)),  # Ensure 5 features
+        layers.Dense(64, activation='relu', input_shape=(4,)),  # 👈 Expecting 4 features now
         layers.Dense(64, activation='relu'),
         layers.Dense(3, activation='softmax')  # 3 Actions: Buy, Sell, Hold
     ])
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='mse')
     return model
+
+# Rebuild model with correct input shape
+if "rl_model" not in st.session_state:
+    st.session_state['rl_model'] = build_rl_model()
+
 
 if "rl_model" not in st.session_state:
     st.session_state['rl_model'] = build_rl_model()
