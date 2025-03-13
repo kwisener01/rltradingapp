@@ -131,19 +131,26 @@ if st.button("Train Reinforcement Learning Model"):
         if predicted_df is not None:
             st.session_state["predicted_data"] = predicted_df  # ✅ Store Bayesian data
             
-            # ✅ Ensure all values are numeric & handle NaN
-            predicted_df.fillna(0, inplace=True)
+            # ✅ Convert columns to numeric & fill NaNs
+            for col in ['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']:
+                if col in predicted_df.columns:
+                    predicted_df[col] = pd.to_numeric(predicted_df[col], errors='coerce').fillna(0)
 
-            # ✅ Convert columns to numpy array with correct shape
+            # ✅ Ensure X_train has correct numerical format
             X_train = predicted_df[['Close', 'Predicted Close', 'Posterior Up', 'Posterior Down']].to_numpy(dtype=np.float32)
-            y_train = np.random.randint(0, 3, size=(len(X_train),))  # Placeholder for Buy/Sell/Hold labels
-            
-            # ✅ Ensure correct shape for TensorFlow
-            if len(X_train) > 0 and X_train.shape[1] == 4:  # Ensure at least one row & correct feature size
-                st.session_state["rl_model"].fit(X_train, y_train, epochs=10, verbose=0)
-                st.write("✅ Reinforcement learning model trained successfully!")
+
+            # ✅ Ensure y_train is categorical (Buy=0, Hold=1, Sell=2)
+            y_train = np.random.randint(0, 3, size=(len(X_train),)).astype(np.int32)
+
+            # ✅ Check data shape & consistency before training
+            if len(X_train) > 0 and X_train.shape[1] == 4 and len(y_train) == len(X_train):
+                try:
+                    st.session_state["rl_model"].fit(X_train, y_train, epochs=10, verbose=0)
+                    st.write("✅ Reinforcement learning model trained successfully!")
+                except Exception as e:
+                    st.error(f"❌ Training failed: {str(e)}")
             else:
-                st.error("❌ Training data shape is incorrect: " + str(X_train.shape))
+                st.error(f"❌ Data shape mismatch: X_train={X_train.shape}, y_train={y_train.shape}")
         else:
             st.error("❌ Bayesian Forecasting failed. Check data format.")
     else:
