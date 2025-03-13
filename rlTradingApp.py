@@ -138,12 +138,9 @@ def build_rl_model():
     model.compile(optimizer='adam', loss='mse')
     return model
 
-rl_model = build_rl_model()
+st.session_state['rl_model'] = build_rl_model()
 
 if st.button("Predict Next [Time Frame]"):
-    if 'rl_model' in st.session_state:
-        sample_input = np.random.rand(1, 5)
-        prediction = st.session_state['rl_model'].predict(sample_input)
-        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0]:.2f}, Hold: {prediction[0][1]:.2f}, Sell: {prediction[0][2]:.2f}")
-    else:
-        st.error("❗ Train the RL model first!")
+    sample_input = np.random.rand(1, 5)
+    prediction = st.session_state['rl_model'].predict(sample_input)
+    st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
