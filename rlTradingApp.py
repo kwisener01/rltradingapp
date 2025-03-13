@@ -75,7 +75,7 @@ if st.button("Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
     if historical_data is not None:
         st.session_state['historical_data'] = historical_data  # Store data in session
-        st.dataframe(historical_data.tail(150))
+        st.dataframe(historical_data.tail(5))
 
 if st.button("Train Reinforcement Learning Model"):
     st.write("🔬 Reinforcement learning training in progress...")
