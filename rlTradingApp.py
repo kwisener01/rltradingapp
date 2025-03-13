@@ -23,7 +23,7 @@ OPENAI_API_KEY = st.secrets["OPENAI"]["API_KEY"]
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Streamlit App Title
-st.title("📊 AI-Powered Trading Advisor with Reinforcement Learning")
+st.title("📊 AI-Powered Trading Advisor with Reinforcement Learning & Bayesian Predictions")
 
 # List of Top Stocks / ETFs
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B"]
@@ -108,3 +108,15 @@ if st.button("Predict Next [Time Frame]"):
         st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
+
+if st.button("Get Bayesian Predictions"):
+    if "historical_data" in st.session_state:
+        historical_data = st.session_state['historical_data']
+        latest_row = historical_data.iloc[-1]
+        posterior_up = latest_row["Posterior Up"] * 100
+        posterior_down = latest_row["Posterior Down"] * 100
+        trend = "Up" if posterior_up > 50 else "Down" if posterior_down > 50 else "Sideways"
+        
+        st.write(f"🔮 **Bayesian Probabilities:** Up: {posterior_up:.2f}%, Down: {posterior_down:.2f}%, Trend: {trend}")
+    else:
+        st.error("❌ Please fetch historical data first!")
