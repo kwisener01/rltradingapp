@@ -17,15 +17,15 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 # Streamlit App Title
 st.title("📊 AI-Powered Trading Advisor with RL & Bayesian Predictions")
 
-# List of Top Stocks / ETFs
+# Sidebar Stock Selection
 top_stocks = ["SPY", "QQQ", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B"]
 selected_stock = st.sidebar.selectbox("Select Ticker", top_stocks)
 
-# User selects interval & number of days
+# Interval & Days Selection
 interval = st.sidebar.selectbox("Select Interval", ["1m", "5m", "15m", "30m", "1h", "1d"], index=5)
 days = st.sidebar.slider("Select Number of Days for History", 1, 30, 7)
 
-# Function to Fetch Historical Data from Yahoo Finance
+# Function to Fetch Historical Data
 def fetch_historical_data_yfinance(ticker, interval, days):
     stock = yf.Ticker(ticker)
     try:
@@ -34,7 +34,7 @@ def fetch_historical_data_yfinance(ticker, interval, days):
             historical_data.reset_index(inplace=True)
             if "Date" not in historical_data.columns:
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
-            
+
             # Add missing required columns
             historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  
             historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  
@@ -60,14 +60,16 @@ def build_rl_model():
 if "rl_model" not in st.session_state:
     st.session_state['rl_model'] = build_rl_model()
 
-if st.button("Get Historical Data"):
+# Fetch Historical Data Button
+if st.button("📊 Get Historical Data"):
     historical_data = fetch_historical_data_yfinance(selected_stock, interval, days)
     if historical_data is not None:
         st.session_state['historical_data'] = historical_data  
         st.dataframe(historical_data.tail(10))  # Keep table visible
 
-if st.button("Train Reinforcement Learning Model"):
-    st.write("🔬 Training Reinforcement Learning Model...")
+# Train RL Model Button
+if st.button("🔬 Train Reinforcement Learning Model"):
+    st.write("🚀 Training Reinforcement Learning Model...")
     
     if "historical_data" in st.session_state:
         historical_data = st.session_state['historical_data']
@@ -81,4 +83,49 @@ if st.button("Train Reinforcement Learning Model"):
             y_train = np.where(historical_data["Supertrend"] == 1, 2, 0)  
             y_train[(historical_data["Posterior Up"] > 0.55) & (historical_data["Posterior Down"] < 0.45)] = 2  # Buy
             y_train[(historical_data["Posterior Up"] < 0.45) & (historical_data["Posterior Down"] > 0.55)] = 0  # Sell
-            y_train[(historical_data["Posterior Up"].between(0.45, 0.55))] = 1  #
+            y_train[(historical_data["Posterior Up"].between(0.45, 0.55))] = 1  # Hold
+            
+            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+            st.write("✅ RL Model Trained Successfully!")
+        else:
+            st.error("❌ Some required features are missing in the dataset!")
+    else:
+        st.error("❌ Please fetch historical data first!")
+
+# Predict Next Time Frame Button
+if st.button("🔮 Predict Next [Time Frame]"):
+    if "rl_model" in st.session_state and "historical_data" in st.session_state:
+        historical_data = st.session_state['historical_data']
+        latest_data = historical_data[["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]].tail(1)
+        prediction = st.session_state['rl_model'].predict(latest_data)
+
+        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
+        st.dataframe(historical_data.tail(10))  # Keep historical data visible
+    else:
+        st.error("❌ Train the model first before predicting!")
+
+# Get Bayesian Predictions Button
+if st.button("📈 Get Bayesian Predictions"):
+    if "historical_data" in st.session_state:
+        historical_data = st.session_state['historical_data']
+        last_five_closes = historical_data["Close"].tail(5).values  
+
+        st.write("📊 **Last 5 Closing Prices:**")
+        for i, price in enumerate(last_five_closes[::-1], 1):
+            st.write(f"{i}. {price:.2f}")
+
+        latest_row = historical_data.iloc[-1]
+        posterior_up = latest_row["Posterior Up"] * 100
+        posterior_down = latest_row["Posterior Down"] * 100
+        trend = "Up" if posterior_up > 50 else "Down" if posterior_down > 50 else "Sideways"
+
+        st.write(f"🔮 **Bayesian Probabilities:** Up: {posterior_up:.2f}%, Down: {posterior_down:.2f}%, Trend: {trend}")
+
+        # Display backtest results
+        win_rate = (historical_data["Supertrend"] == np.sign(historical_data["Close"].diff())).mean() * 100
+        avg_return = historical_data["Close"].pct_change().mean() * 100
+        st.write(f"📈 **Backtest Stats:** Win Rate: {win_rate:.2f}%, Avg Return: {avg_return:.2f}%")
+        
+        st.dataframe(historical_data.tail(10))  # Keep historical data visible
+    else:
+        st.error("❌ Please fetch historical data first!")
