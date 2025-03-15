@@ -36,14 +36,11 @@ def fetch_historical_data_yfinance(ticker, interval, days):
                 historical_data.rename(columns={"Datetime": "Date"}, inplace=True)
             
             # Add missing required columns
-            if "Predicted Close" not in historical_data.columns:
-                historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  
-            if "Supertrend" not in historical_data.columns:
-                historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  
-            if "Posterior Up" not in historical_data.columns:
-                historical_data["Posterior Up"] = np.random.rand(len(historical_data))
-            if "Posterior Down" not in historical_data.columns:
-                historical_data["Posterior Down"] = 1 - historical_data["Posterior Up"]
+            historical_data["Predicted Close"] = historical_data["Close"].shift(-1)  
+            historical_data["Supertrend"] = np.random.choice([-1, 1], size=len(historical_data))  
+            historical_data["Posterior Up"] = np.random.rand(len(historical_data))
+            historical_data["Posterior Down"] = 1 - historical_data["Posterior Up"]
+            historical_data["Return"] = historical_data["Close"].pct_change()
             
             return historical_data
     except Exception as e:
@@ -79,44 +76,9 @@ if st.button("Train Reinforcement Learning Model"):
         feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
         if all(col in historical_data.columns for col in feature_columns):
             X_train = historical_data[feature_columns].values
-            y_train = np.random.randint(0, 3, size=len(X_train))  
-        
-            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-            st.write("✅ RL Model Trained Successfully!")
-        else:
-            st.error("❌ Some required features are missing in the dataset!")
-    else:
-        st.error("❌ Please fetch historical data first!")
 
-if st.button("Predict Next [Time Frame]"):
-    if "rl_model" in st.session_state:
-        sample_input = np.random.rand(1, 5)
-        prediction = st.session_state['rl_model'].predict(sample_input)
-        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
-    else:
-        st.error("❌ Train the model first before predicting!")
-
-if st.button("Get Bayesian Predictions"):
-    if "historical_data" in st.session_state:
-        historical_data = st.session_state['historical_data']
-        last_five_closes = historical_data["Close"].tail(5).values  
-
-        st.write("📊 **Last 5 Closing Prices:**")
-        for i, price in enumerate(last_five_closes[::-1], 1):
-            st.write(f"{i}. {price:.2f}")
-
-        latest_row = historical_data.iloc[-1]
-        posterior_up = latest_row["Posterior Up"] * 100
-        posterior_down = latest_row["Posterior Down"] * 100
-        trend = "Up" if posterior_up > 50 else "Down" if posterior_down > 50 else "Sideways"
-
-        st.write(f"🔮 **Bayesian Probabilities:** Up: {posterior_up:.2f}%, Down: {posterior_down:.2f}%, Trend: {trend}")
-
-        # Display backtest results
-        win_rate = (historical_data["Supertrend"] == np.sign(historical_data["Close"].diff())).mean() * 100
-        avg_return = historical_data["Close"].pct_change().mean() * 100
-        st.write(f"📈 **Backtest Stats:** Win Rate: {win_rate:.2f}%, Avg Return: {avg_return:.2f}%")
-        
-        st.dataframe(historical_data.tail(10))  # Keep historical data visible
-    else:
-        st.error("❌ Please fetch historical data first!")
+            # Define labels (0=Sell, 1=Hold, 2=Buy) based on Supertrend & Bayesian probabilities
+            y_train = np.where(historical_data["Supertrend"] == 1, 2, 0)  
+            y_train[(historical_data["Posterior Up"] > 0.55) & (historical_data["Posterior Down"] < 0.45)] = 2  # Buy
+            y_train[(historical_data["Posterior Up"] < 0.45) & (historical_data["Posterior Down"] > 0.55)] = 0  # Sell
+            y_train[(historical_data["Posterior Up"].between(0.45, 0.55))] = 1  #
