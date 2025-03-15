@@ -71,29 +71,37 @@ if st.button("📊 Get Historical Data"):
 # train model
 if st.button("🔬 Train Reinforcement Learning Model"):
     st.write("🚀 Training Reinforcement Learning Model...")
-    
+
     if "historical_data" in st.session_state:
-        historical_data = st.session_state['historical_data']
+        historical_data = st.session_state['historical_data'].copy()
         historical_data.fillna(method='ffill', inplace=True)  # Fill missing values
-        
+
         # Define feature columns for training
         feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
+        
         if all(col in historical_data.columns for col in feature_columns):
-            X_train = historical_data[feature_columns].values  # Convert to NumPy array
+            X_train = historical_data[feature_columns].values.astype(np.float32)  # Convert to float32
+            
+            # Ensure y_train matches X_train length
+            y_train = np.zeros(len(X_train), dtype=int)  # Default: Hold (1)
 
-            # Ensure `y_train` is the same length as `X_train`
-            y_train = np.zeros(len(X_train), dtype=int)  # Default to Hold (1)
-
-            # Label rules: Sell (0), Hold (1), Buy (2)
+            # Label mapping: Sell (0), Hold (1), Buy (2)
             y_train[historical_data["Supertrend"] == 1] = 2  # Buy
             y_train[historical_data["Supertrend"] == -1] = 0  # Sell
             y_train[(historical_data["Posterior Up"] > 0.55) & (historical_data["Posterior Down"] < 0.45)] = 2  # Buy
             y_train[(historical_data["Posterior Up"] < 0.45) & (historical_data["Posterior Down"] > 0.55)] = 0  # Sell
             
+            # Debugging Step: Print Data Shapes
+            st.write(f"X_train shape: {X_train.shape}, dtype: {X_train.dtype}")
+            st.write(f"y_train shape: {y_train.shape}, dtype: {y_train.dtype}")
+
             # Train model only if there's enough data
             if len(X_train) > 10:
-                st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-                st.write("✅ RL Model Trained Successfully!")
+                try:
+                    st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+                    st.write("✅ RL Model Trained Successfully!")
+                except Exception as e:
+                    st.error(f"❌ Model Training Failed: {e}")
             else:
                 st.error("❌ Not enough data to train the model! Please fetch more historical data.")
         else:
