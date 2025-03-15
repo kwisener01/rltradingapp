@@ -69,6 +69,8 @@ if st.button("📊 Get Historical Data"):
 
 
 # train model
+from tensorflow.keras.utils import to_categorical  # Import one-hot encoding utility
+
 if st.button("🔬 Train Reinforcement Learning Model"):
     st.write("🚀 Training Reinforcement Learning Model...")
 
@@ -82,15 +84,16 @@ if st.button("🔬 Train Reinforcement Learning Model"):
         if all(col in historical_data.columns for col in feature_columns):
             X_train = historical_data[feature_columns].values.astype(np.float32)  # Convert to float32
             
-            # Ensure y_train matches X_train length
+            # Generate Labels for Actions (Buy=2, Hold=1, Sell=0)
             y_train = np.zeros(len(X_train), dtype=int)  # Default: Hold (1)
-
-            # Label mapping: Sell (0), Hold (1), Buy (2)
             y_train[historical_data["Supertrend"] == 1] = 2  # Buy
             y_train[historical_data["Supertrend"] == -1] = 0  # Sell
             y_train[(historical_data["Posterior Up"] > 0.55) & (historical_data["Posterior Down"] < 0.45)] = 2  # Buy
             y_train[(historical_data["Posterior Up"] < 0.45) & (historical_data["Posterior Down"] > 0.55)] = 0  # Sell
             
+            # 🔹 Convert labels to One-Hot Encoding (to match model output shape)
+            y_train = to_categorical(y_train, num_classes=3)
+
             # Debugging Step: Print Data Shapes
             st.write(f"X_train shape: {X_train.shape}, dtype: {X_train.dtype}")
             st.write(f"y_train shape: {y_train.shape}, dtype: {y_train.dtype}")
