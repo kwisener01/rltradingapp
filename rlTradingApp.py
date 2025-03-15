@@ -67,26 +67,35 @@ if st.button("📊 Get Historical Data"):
         st.session_state['historical_data'] = historical_data  
         st.dataframe(historical_data.tail(10))  # Keep table visible
 
-# Train RL Model Button
+
+# train model
 if st.button("🔬 Train Reinforcement Learning Model"):
     st.write("🚀 Training Reinforcement Learning Model...")
     
     if "historical_data" in st.session_state:
         historical_data = st.session_state['historical_data']
-        historical_data.fillna(method='ffill', inplace=True)
-
+        historical_data.fillna(method='ffill', inplace=True)  # Fill missing values
+        
+        # Define feature columns for training
         feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
         if all(col in historical_data.columns for col in feature_columns):
-            X_train = historical_data[feature_columns].values
+            X_train = historical_data[feature_columns].values  # Convert to NumPy array
 
-            # Define labels (0=Sell, 1=Hold, 2=Buy) based on Supertrend & Bayesian probabilities
-            y_train = np.where(historical_data["Supertrend"] == 1, 2, 0)  
+            # Ensure `y_train` is the same length as `X_train`
+            y_train = np.zeros(len(X_train), dtype=int)  # Default to Hold (1)
+
+            # Label rules: Sell (0), Hold (1), Buy (2)
+            y_train[historical_data["Supertrend"] == 1] = 2  # Buy
+            y_train[historical_data["Supertrend"] == -1] = 0  # Sell
             y_train[(historical_data["Posterior Up"] > 0.55) & (historical_data["Posterior Down"] < 0.45)] = 2  # Buy
             y_train[(historical_data["Posterior Up"] < 0.45) & (historical_data["Posterior Down"] > 0.55)] = 0  # Sell
-            y_train[(historical_data["Posterior Up"].between(0.45, 0.55))] = 1  # Hold
             
-            st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
-            st.write("✅ RL Model Trained Successfully!")
+            # Train model only if there's enough data
+            if len(X_train) > 10:
+                st.session_state['rl_model'].fit(X_train, y_train, epochs=10, verbose=0)
+                st.write("✅ RL Model Trained Successfully!")
+            else:
+                st.error("❌ Not enough data to train the model! Please fetch more historical data.")
         else:
             st.error("❌ Some required features are missing in the dataset!")
     else:
