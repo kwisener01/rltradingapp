@@ -113,21 +113,33 @@ if st.button("🔬 Train Reinforcement Learning Model"):
         st.error("❌ Please fetch historical data first!")
 
 # Predict Next Time Frame Button
-if st.button("Predict Next [Time Frame]"):
-    if "rl_model" in st.session_state and "historical_data" in st.session_state:
-        historical_data = st.session_state["historical_data"]
-        last_row = historical_data[["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]].iloc[-1]
+if st.button("Train Reinforcement Learning Model"):
+    st.write("🔬 Training Reinforcement Learning Model...")
 
-        # Convert to NumPy and reshape for prediction
-        sample_input = np.array(last_row).reshape(1, -1).astype(np.float32)
+    if "historical_data" in st.session_state:
+        historical_data = st.session_state['historical_data']
 
-        if np.isnan(sample_input).any():
-            st.error("❌ Prediction failed: Input contains NaN values!")
+        # Fill missing values using forward fill
+        historical_data.fillna(method='ffill', inplace=True)
+
+        # Ensure required columns exist
+        feature_columns = ["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]
+        if all(col in historical_data.columns for col in feature_columns):
+            X_train = historical_data[feature_columns].values
+            y_train = np.random.randint(0, 3, size=len(X_train))  
+
+            # Ensure no NaN values in training data
+            if np.isnan(X_train).any():
+                st.error("❌ Training failed: X_train contains NaN values!")
+                st.stop()
+
+            # Train the model
+            st.session_state['rl_model'].fit(X_train, y_train, epochs=20, batch_size=32, verbose=0)
+            st.write("✅ RL Model Trained Successfully!")
         else:
-            prediction = st.session_state['rl_model'].predict(sample_input)
-            st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
+            st.error("❌ Some required features are missing in the dataset!")
     else:
-        st.error("❌ Train the model first before predicting!")
+        st.error("❌ Please fetch historical data first!")
 
 # Get Bayesian Predictions Button
 if st.button("📈 Get Bayesian Predictions"):
