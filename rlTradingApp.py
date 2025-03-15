@@ -113,14 +113,19 @@ if st.button("🔬 Train Reinforcement Learning Model"):
         st.error("❌ Please fetch historical data first!")
 
 # Predict Next Time Frame Button
-if st.button("🔮 Predict Next [Time Frame]"):
+if st.button("Predict Next [Time Frame]"):
     if "rl_model" in st.session_state and "historical_data" in st.session_state:
-        historical_data = st.session_state['historical_data']
-        latest_data = historical_data[["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]].tail(1)
-        prediction = st.session_state['rl_model'].predict(latest_data)
+        historical_data = st.session_state["historical_data"]
+        last_row = historical_data[["Close", "Predicted Close", "Posterior Up", "Posterior Down", "Supertrend"]].iloc[-1]
 
-        st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
-        st.dataframe(historical_data.tail(10))  # Keep historical data visible
+        # Convert to NumPy and reshape for prediction
+        sample_input = np.array(last_row).reshape(1, -1).astype(np.float32)
+
+        if np.isnan(sample_input).any():
+            st.error("❌ Prediction failed: Input contains NaN values!")
+        else:
+            prediction = st.session_state['rl_model'].predict(sample_input)
+            st.write(f"🔮 **Prediction Probabilities:** Buy: {prediction[0][0] * 100:.2f}%, Hold: {prediction[0][1] * 100:.2f}%, Sell: {prediction[0][2] * 100:.2f}%")
     else:
         st.error("❌ Train the model first before predicting!")
 
